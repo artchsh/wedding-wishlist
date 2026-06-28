@@ -1,7 +1,14 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { ExternalLink, Loader2, RefreshCw, Trash2, X } from "lucide-react";
+import {
+  ExternalLink,
+  Loader2,
+  Pencil,
+  RefreshCw,
+  Trash2,
+  X,
+} from "lucide-react";
 import Link from "next/link";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -30,15 +37,26 @@ import {
   type WishlistItem,
 } from "../wishlist-data";
 
-const emptyForm = {
+type GiftFormState = {
+  title: string;
+  note: string;
+  url: string;
+  imageUrl: string;
+  category: string;
+  price: string;
+  priceCurrency: PriceCurrency;
+  deliveryEstimate: DeliveryEstimate;
+};
+
+const emptyForm: GiftFormState = {
   title: "",
   note: "",
   url: "",
   imageUrl: "",
   category: "",
   price: "",
-  priceCurrency: "KZT" as PriceCurrency,
-  deliveryEstimate: "" as DeliveryEstimate,
+  priceCurrency: "KZT",
+  deliveryEstimate: "",
 };
 
 export function AdminWishlist() {
@@ -47,6 +65,8 @@ export function AdminWishlist() {
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<GiftFormState>(emptyForm);
   const [status, setStatus] = useState("Загрузка списка...");
   const [error, setError] = useState("");
   const [lastUpdated, setLastUpdated] = useState<string | undefined>();
@@ -150,6 +170,54 @@ export function AdminWishlist() {
     );
   }
 
+  function startEdit(item: WishlistItem) {
+    setConfirmDeleteId(null);
+    setEditingId(item.id);
+    setEditForm({
+      title: item.title,
+      note: item.note,
+      url: item.url,
+      imageUrl: item.imageUrl,
+      category: item.category,
+      price: item.price,
+      priceCurrency: item.priceCurrency,
+      deliveryEstimate: item.deliveryEstimate,
+    });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+  }
+
+  async function saveEdit(event: FormEvent<HTMLFormElement>, itemId: string) {
+    event.preventDefault();
+
+    const title = editForm.title.trim();
+    if (!title) {
+      setError("Название подарка обязательно.");
+      return;
+    }
+
+    const nextItems = items.map((item) =>
+      item.id === itemId
+        ? {
+            ...item,
+            title,
+            note: editForm.note.trim(),
+            url: editForm.url.trim(),
+            imageUrl: editForm.imageUrl.trim(),
+            category: editForm.category.trim(),
+            price: editForm.price.trim(),
+            priceCurrency: editForm.priceCurrency,
+            deliveryEstimate: editForm.deliveryEstimate,
+          }
+        : item
+    );
+
+    await persist(nextItems, itemId);
+    setEditingId(null);
+  }
+
   return (
     <main className="min-h-screen bg-muted/30">
       <div className="mx-auto grid w-full max-w-7xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[360px_1fr] lg:px-8">
@@ -210,131 +278,12 @@ export function AdminWishlist() {
             </CardHeader>
             <CardContent>
               <form className="space-y-4" onSubmit={addGift}>
-                <Field label="Название подарка" htmlFor="title">
-                  <Input
-                    id="title"
-                    value={form.title}
-                    onChange={(event) =>
-                      setForm({ ...form, title: event.target.value })
-                    }
-                    placeholder="Робот-пылесос"
-                    required
-                  />
-                </Field>
-                <Field label="Ссылка на магазин" htmlFor="url">
-                  <Input
-                    id="url"
-                    type="url"
-                    value={form.url}
-                    onChange={(event) =>
-                      setForm({ ...form, url: event.target.value })
-                    }
-                    placeholder="https://..."
-                  />
-                </Field>
-                <Field label="Ссылка на изображение" htmlFor="imageUrl">
-                  <Input
-                    id="imageUrl"
-                    type="url"
-                    value={form.imageUrl}
-                    onChange={(event) =>
-                      setForm({ ...form, imageUrl: event.target.value })
-                    }
-                    placeholder="https://example.com/image.jpg"
-                  />
-                  {form.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={form.imageUrl}
-                      alt="Предпросмотр"
-                      className="mt-2 aspect-[4/3] w-full rounded-md object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = "none";
-                      }}
-                      onLoad={(e) => {
-                        (e.target as HTMLImageElement).style.display = "block";
-                      }}
-                    />
-                  ) : null}
-                </Field>
-                <Field label="Категория" htmlFor="category">
-                  <Input
-                    id="category"
-                    value={form.category}
-                    onChange={(event) =>
-                      setForm({ ...form, category: event.target.value })
-                    }
-                    placeholder="Кухня, Дом, Путешествия..."
-                    list="category-suggestions"
-                  />
-                  {categories.length ? (
-                    <datalist id="category-suggestions">
-                      {categories.map((cat) => (
-                        <option key={cat} value={cat} />
-                      ))}
-                    </datalist>
-                  ) : null}
-                </Field>
-                <Field label="Цена" htmlFor="price">
-                  <Input
-                    id="price"
-                    value={form.price}
-                    onChange={(event) =>
-                      setForm({ ...form, price: event.target.value })
-                    }
-                    placeholder={
-                      form.priceCurrency === "USD" ? "250" : "150 000"
-                    }
-                  />
-                </Field>
-                <Field label="Валюта" htmlFor="priceCurrency">
-                  <select
-                    id="priceCurrency"
-                    value={form.priceCurrency}
-                    onChange={(event) =>
-                      setForm({
-                        ...form,
-                        priceCurrency: event.target.value as PriceCurrency,
-                      })
-                    }
-                    className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                  >
-                    <option value="KZT">₸ KZT</option>
-                    <option value="USD">$ USD</option>
-                  </select>
-                </Field>
-                <Field label="Доставка" htmlFor="deliveryEstimate">
-                  <select
-                    id="deliveryEstimate"
-                    value={form.deliveryEstimate}
-                    onChange={(event) =>
-                      setForm({
-                        ...form,
-                        deliveryEstimate: event.target
-                          .value as DeliveryEstimate,
-                      })
-                    }
-                    className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                  >
-                    <option value="">Не указано</option>
-                    <option value="SHORT">
-                      {formatDeliveryEstimate("SHORT")}
-                    </option>
-                    <option value="LONG">
-                      {formatDeliveryEstimate("LONG")}
-                    </option>
-                  </select>
-                </Field>
-                <Field label="Описание" htmlFor="note">
-                  <Textarea
-                    id="note"
-                    value={form.note}
-                    onChange={(event) =>
-                      setForm({ ...form, note: event.target.value })
-                    }
-                    placeholder="Полезные детали для гостей."
-                  />
-                </Field>
+                <GiftFormFields
+                  idPrefix="add"
+                  value={form}
+                  onChange={setForm}
+                  categories={categories}
+                />
                 <Button
                   type="submit"
                   disabled={savingId === "new"}
@@ -376,10 +325,17 @@ export function AdminWishlist() {
                   item={item}
                   busy={savingId === item.id}
                   confirming={confirmDeleteId === item.id}
+                  editing={editingId === item.id}
+                  editForm={editForm}
+                  categories={categories}
                   onDelete={() => deleteGift(item.id)}
                   onConfirmDelete={() => setConfirmDeleteId(item.id)}
                   onCancelDelete={() => setConfirmDeleteId(null)}
                   onRelease={() => releaseGift(item.id)}
+                  onStartEdit={() => startEdit(item)}
+                  onCancelEdit={cancelEdit}
+                  onEditFormChange={setEditForm}
+                  onSaveEdit={(event) => saveEdit(event, item.id)}
                 />
               ))}
             </div>
@@ -400,20 +356,69 @@ function InventoryCard({
   item,
   busy,
   confirming,
+  editing,
+  editForm,
+  categories,
   onDelete,
   onConfirmDelete,
   onCancelDelete,
   onRelease,
+  onStartEdit,
+  onCancelEdit,
+  onEditFormChange,
+  onSaveEdit,
 }: {
   item: WishlistItem;
   busy: boolean;
   confirming: boolean;
+  editing: boolean;
+  editForm: GiftFormState;
+  categories: string[];
   onDelete: () => void;
   onConfirmDelete: () => void;
   onCancelDelete: () => void;
   onRelease: () => void;
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onEditFormChange: (next: GiftFormState) => void;
+  onSaveEdit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   const reserved = Boolean(item.reservedBy);
+
+  if (editing) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Редактирование подарка</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form className="space-y-4" onSubmit={onSaveEdit}>
+            <GiftFormFields
+              idPrefix={`edit-${item.id}`}
+              value={editForm}
+              onChange={onEditFormChange}
+              categories={categories}
+            />
+            <div className="flex gap-2">
+              <Button type="submit" disabled={busy} className="flex-1">
+                {busy ? <Loader2 className="animate-spin" /> : null}
+                Сохранить
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onCancelEdit}
+                disabled={busy}
+                className="flex-1"
+              >
+                Отмена
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
@@ -482,6 +487,16 @@ function InventoryCard({
             Снять бронь
           </Button>
         ) : null}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onStartEdit}
+          disabled={busy}
+        >
+          <Pencil />
+          Редактировать
+        </Button>
         {confirming ? (
           <>
             <span className="text-xs text-muted-foreground">Удалить?</span>
@@ -519,6 +534,141 @@ function InventoryCard({
         )}
       </CardFooter>
     </Card>
+  );
+}
+
+function GiftFormFields({
+  idPrefix,
+  value,
+  onChange,
+  categories,
+}: {
+  idPrefix: string;
+  value: GiftFormState;
+  onChange: (next: GiftFormState) => void;
+  categories: string[];
+}) {
+  return (
+    <>
+      <Field label="Название подарка" htmlFor={`${idPrefix}-title`}>
+        <Input
+          id={`${idPrefix}-title`}
+          value={value.title}
+          onChange={(event) =>
+            onChange({ ...value, title: event.target.value })
+          }
+          placeholder="Робот-пылесос"
+          required
+        />
+      </Field>
+      <Field label="Ссылка на магазин" htmlFor={`${idPrefix}-url`}>
+        <Input
+          id={`${idPrefix}-url`}
+          type="url"
+          value={value.url}
+          onChange={(event) =>
+            onChange({ ...value, url: event.target.value })
+          }
+          placeholder="https://..."
+        />
+      </Field>
+      <Field label="Ссылка на изображение" htmlFor={`${idPrefix}-imageUrl`}>
+        <Input
+          id={`${idPrefix}-imageUrl`}
+          type="url"
+          value={value.imageUrl}
+          onChange={(event) =>
+            onChange({ ...value, imageUrl: event.target.value })
+          }
+          placeholder="https://example.com/image.jpg"
+        />
+        {value.imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={value.imageUrl}
+            alt="Предпросмотр"
+            className="mt-2 aspect-[4/3] w-full rounded-md object-cover"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = "none";
+            }}
+            onLoad={(e) => {
+              (e.target as HTMLImageElement).style.display = "block";
+            }}
+          />
+        ) : null}
+      </Field>
+      <Field label="Категория" htmlFor={`${idPrefix}-category`}>
+        <Input
+          id={`${idPrefix}-category`}
+          value={value.category}
+          onChange={(event) =>
+            onChange({ ...value, category: event.target.value })
+          }
+          placeholder="Кухня, Дом, Путешествия..."
+          list={`${idPrefix}-category-suggestions`}
+        />
+        {categories.length ? (
+          <datalist id={`${idPrefix}-category-suggestions`}>
+            {categories.map((cat) => (
+              <option key={cat} value={cat} />
+            ))}
+          </datalist>
+        ) : null}
+      </Field>
+      <Field label="Цена" htmlFor={`${idPrefix}-price`}>
+        <Input
+          id={`${idPrefix}-price`}
+          value={value.price}
+          onChange={(event) =>
+            onChange({ ...value, price: event.target.value })
+          }
+          placeholder={value.priceCurrency === "USD" ? "250" : "150 000"}
+        />
+      </Field>
+      <Field label="Валюта" htmlFor={`${idPrefix}-priceCurrency`}>
+        <select
+          id={`${idPrefix}-priceCurrency`}
+          value={value.priceCurrency}
+          onChange={(event) =>
+            onChange({
+              ...value,
+              priceCurrency: event.target.value as PriceCurrency,
+            })
+          }
+          className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          <option value="KZT">₸ KZT</option>
+          <option value="USD">$ USD</option>
+        </select>
+      </Field>
+      <Field label="Доставка" htmlFor={`${idPrefix}-deliveryEstimate`}>
+        <select
+          id={`${idPrefix}-deliveryEstimate`}
+          value={value.deliveryEstimate}
+          onChange={(event) =>
+            onChange({
+              ...value,
+              deliveryEstimate: event.target.value as DeliveryEstimate,
+            })
+          }
+          className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          <option value="">Не указано</option>
+          <option value="SHORT">{formatDeliveryEstimate("SHORT")}</option>
+          <option value="LONG">{formatDeliveryEstimate("LONG")}</option>
+        </select>
+      </Field>
+      <Field label="Описание" htmlFor={`${idPrefix}-note`}>
+        <Textarea
+          id={`${idPrefix}-note`}
+          value={value.note}
+          onChange={(event) =>
+            onChange({ ...value, note: event.target.value })
+          }
+          placeholder="Полезные детали для гостей."
+        />
+      </Field>
+    </>
   );
 }
 
