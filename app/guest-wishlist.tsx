@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { Check, Copy, ExternalLink, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,6 +49,12 @@ export function GuestWishlist() {
   const [usdToKztRate, setUsdToKztRate] = useState<number | null>(null);
   const [categoryOrder, setCategoryOrder] = useState<string[]>([]);
   const [kaspiCopied, setKaspiCopied] = useState(false);
+  const [recentlyMovedId, setRecentlyMovedId] = useState<string | null>(null);
+  const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
+  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const scrollTargetIdRef = useRef<string | null>(null);
 
   const openCount = useMemo(
     () => items.filter((item) => !isItemLocked(item)).length,
@@ -93,6 +100,35 @@ export function GuestWishlist() {
     }
   }, [guestName]);
 
+  useEffect(() => {
+    return () => {
+      if (highlightTimeoutRef.current) {
+        clearTimeout(highlightTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  function flashHighlight(itemId: string) {
+    if (highlightTimeoutRef.current) {
+      clearTimeout(highlightTimeoutRef.current);
+    }
+
+    setRecentlyMovedId(itemId);
+    highlightTimeoutRef.current = setTimeout(() => {
+      setRecentlyMovedId(null);
+    }, 1800);
+  }
+
+  function scrollCardIntoView(itemId: string) {
+    if (typeof window === "undefined" || window.innerWidth >= 640) return;
+
+    cardRefs.current[itemId]?.scrollIntoView({
+      behavior: "smooth",
+      inline: "center",
+      block: "nearest",
+    });
+  }
+
   async function handleCopyKaspi() {
     try {
       await navigator.clipboard.writeText(KASPI_NUMBER);
@@ -127,6 +163,12 @@ export function GuestWishlist() {
       await replaceWishlist(nextItems, categoryOrder);
       setItems(nextItems);
       void triggerBackup();
+
+      flashHighlight(itemId);
+      const reservedItem = nextItems.find((item) => item.id === itemId);
+      if (reservedItem && !reservedItem.unlimitedReservation) {
+        scrollTargetIdRef.current = itemId;
+      }
     } finally {
       setSavingId(null);
     }
@@ -159,6 +201,12 @@ export function GuestWishlist() {
       await replaceWishlist(nextItems, categoryOrder);
       setItems(nextItems);
       void triggerBackup();
+
+      flashHighlight(itemId);
+      const cancelledItem = nextItems.find((item) => item.id === itemId);
+      if (cancelledItem && !cancelledItem.unlimitedReservation) {
+        scrollTargetIdRef.current = itemId;
+      }
     } finally {
       setSavingId(null);
     }
@@ -228,47 +276,103 @@ export function GuestWishlist() {
             </p>
           </div> */}
 
-          {loading ? (
-            <GiftSkeletonGrid />
-          ) : items.length ? (
-            <div className="space-y-8">
-              {categoryGroups.map((group) => (
-                <section key={group.category} className="space-y-3">
-                  <div>
-                    <h3 className="font-heading text-xl font-semibold tracking-tight">
-                      {group.category}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      {group.items.filter((item) => !isItemLocked(item)).length} из{" "}
-                      {group.items.length} без хозяина
-                    </p>
-                  </div>
-                  <div className="-mx-4 overflow-x-auto no-scrollbar px-4 pb-3 sm:mx-0 sm:overflow-visible sm:px-0 sm:pb-0">
-                    <div className="flex snap-x snap-mandatory gap-4 pt-2 sm:grid sm:snap-none sm:grid-cols-2 lg:grid-cols-3">
-                      {group.items.map((item) => (
-                        <GiftCard
-                          key={item.id}
-                          item={item}
-                          guestName={guestName}
-                          saving={savingId === item.id}
-                          usdToKztRate={usdToKztRate}
-                          onReserve={() => reserveGift(item.id)}
-                          onCancelReservation={() => cancelReservation(item.id)}
-                        />
-                      ))}
-                      <div className="w-1 shrink-0 sm:hidden" aria-hidden="true" />
+          <AnimatePresence mode="wait">
+            {loading ? (
+              <motion.div
+                key="skeleton"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <GiftSkeletonGrid />
+              </motion.div>
+            ) : items.length ? (
+              <motion.div
+                key="content"
+                className="space-y-8"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3 }}
+              >
+                {categoryGroups.map((group) => (
+                  <motion.section
+                    key={group.category}
+                    className="space-y-3"
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.35 }}
+                  >
+                    <div>
+                      <h3 className="font-heading text-xl font-semibold tracking-tight">
+                        {group.category}
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        {group.items.filter((item) => !isItemLocked(item)).length} из{" "}
+                        {group.items.length} без хозяина
+                      </p>
                     </div>
-                  </div>
-                </section>
-              ))}
-            </div>
-          ) : (
-            <Card>
-              <CardContent className="py-10 text-center text-muted-foreground">
-                Бля, подарки украли...
-              </CardContent>
-            </Card>
-          )}
+                    <div className="-mx-4 overflow-x-auto no-scrollbar px-4 pb-3 sm:mx-0 sm:overflow-visible sm:px-0 sm:pb-0">
+                      <div className="flex snap-x snap-mandatory gap-4 pt-2 sm:grid sm:snap-none sm:grid-cols-2 lg:grid-cols-3">
+                        <AnimatePresence>
+                          {group.items.map((item) => (
+                            <motion.div
+                              key={item.id}
+                              ref={(el: HTMLDivElement | null) => {
+                                cardRefs.current[item.id] = el;
+                              }}
+                              layout
+                              initial={{ opacity: 0, scale: 0.92 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.92 }}
+                              transition={{
+                                type: "spring",
+                                stiffness: 350,
+                                damping: 32,
+                                mass: 0.6,
+                              }}
+                              onLayoutAnimationComplete={() => {
+                                if (scrollTargetIdRef.current === item.id) {
+                                  scrollTargetIdRef.current = null;
+                                  scrollCardIntoView(item.id);
+                                }
+                              }}
+                              className="w-[82vw] shrink-0 snap-start sm:w-auto"
+                            >
+                              <GiftCard
+                                item={item}
+                                guestName={guestName}
+                                saving={savingId === item.id}
+                                usdToKztRate={usdToKztRate}
+                                highlighted={recentlyMovedId === item.id}
+                                onReserve={() => reserveGift(item.id)}
+                                onCancelReservation={() =>
+                                  cancelReservation(item.id)
+                                }
+                              />
+                            </motion.div>
+                          ))}
+                        </AnimatePresence>
+                        <div className="w-1 shrink-0 sm:hidden" aria-hidden="true" />
+                      </div>
+                    </div>
+                  </motion.section>
+                ))}
+              </motion.div>
+            ) : (
+              <motion.div
+                key="empty"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+              >
+                <Card>
+                  <CardContent className="py-10 text-center text-muted-foreground">
+                    Бля, подарки украли...
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </section>
       </div>
     </main>
@@ -280,6 +384,7 @@ function GiftCard({
   guestName,
   saving,
   usdToKztRate,
+  highlighted,
   onReserve,
   onCancelReservation,
 }: {
@@ -287,6 +392,7 @@ function GiftCard({
   guestName: string;
   saving: boolean;
   usdToKztRate: number | null;
+  highlighted: boolean;
   onReserve: () => void;
   onCancelReservation: () => void;
 }) {
@@ -301,13 +407,13 @@ function GiftCard({
 
   return (
     <Card
-      className={`w-[82vw] shrink-0 snap-start sm:w-auto pt-0 ${
+      className={`pt-0 transition-shadow duration-700 ${
         reservedByCurrentGuest
           ? "ring-2 ring-primary/40"
           : reservedByOther
             ? "opacity-60"
             : ""
-      }`}
+      } ${highlighted ? "ring-2 ring-secondary shadow-[0_0_28px_var(--secondary)]" : ""}`}
     >
       <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
         {item.imageUrl ? (
