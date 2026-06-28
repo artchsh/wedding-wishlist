@@ -1,4 +1,3 @@
-export const API_URL = "https://api.npoint.io/8771deb313d9bd0570e7";
 export const EXCHANGE_RATE_URL = "https://api.exchangerate.fun/latest?base=USD";
 
 export type PriceCurrency = "KZT" | "USD";
@@ -162,12 +161,16 @@ function normalizeCurrency(
 }
 
 export async function fetchWishlist(signal?: AbortSignal) {
-  const response = await fetch(API_URL, {
+  const response = await fetch("/api/wishlist", {
     method: "GET",
     headers: { Accept: "application/json" },
     cache: "no-store",
     signal,
   });
+
+  if (response.status === 404) {
+    return normalizeWishlist({});
+  }
 
   if (!response.ok) {
     throw new Error("Could not load the wishlist.");
@@ -291,7 +294,7 @@ export async function replaceWishlist(
     updatedAt: new Date().toISOString(),
   };
 
-  const response = await fetch(API_URL, {
+  const response = await fetch("/api/wishlist", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

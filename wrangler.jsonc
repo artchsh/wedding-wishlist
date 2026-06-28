@@ -19,6 +19,12 @@
   "images": {
     "binding": "IMAGES"
   },
+  "r2_buckets": [
+    {
+      "binding": "WISHLIST_BUCKET",
+      "bucket_name": "wedding-wishlist-data"
+    }
+  ],
   "observability": {
     "enabled": true
   }
