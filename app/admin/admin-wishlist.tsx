@@ -8,6 +8,7 @@ import {
   Loader2,
   Pencil,
   RefreshCw,
+  Send,
   Trash2,
   X,
 } from "lucide-react";
@@ -38,6 +39,7 @@ import {
   type PriceCurrency,
   replaceWishlist,
   starterItems,
+  triggerBackup,
   type WishlistItem,
 } from "../wishlist-data";
 
@@ -85,6 +87,8 @@ export function AdminWishlist() {
   const [error, setError] = useState("");
   const [lastUpdated, setLastUpdated] = useState<string | undefined>();
   const [categoryOrder, setCategoryOrder] = useState<string[]>([]);
+  const [backupSending, setBackupSending] = useState(false);
+  const [backupStatus, setBackupStatus] = useState("");
 
   const reservedCount = items.filter(isItemLocked).length;
   const openCount = items.length - reservedCount;
@@ -165,12 +169,24 @@ export function AdminWishlist() {
       setCategoryOrder(nextCategoryOrder);
       setLastUpdated(document.updatedAt);
       setStatus("Изменения сохранены.");
+      void triggerBackup();
     } catch {
       setError("Не удалось сохранить изменения.");
       setStatus("Ошибка сохранения.");
     } finally {
       setSavingId(null);
     }
+  }
+
+  async function handleManualBackup() {
+    setBackupSending(true);
+    setBackupStatus("Отправка...");
+
+    const result = await triggerBackup();
+    setBackupStatus(
+      result.ok ? "Бэкап отправлен в Discord." : `Ошибка: ${result.error}`
+    );
+    setBackupSending(false);
   }
 
   async function moveCategory(category: string, direction: -1 | 1) {
@@ -373,6 +389,23 @@ export function AdminWishlist() {
                   <Link href="/">Смотреть сайт</Link>
                 </Button>
               </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleManualBackup}
+                disabled={backupSending}
+                className="w-full"
+              >
+                {backupSending ? (
+                  <Loader2 className="animate-spin" />
+                ) : (
+                  <Send />
+                )}
+                Отправить бэкап в Discord
+              </Button>
+              {backupStatus ? (
+                <p className="text-xs text-muted-foreground">{backupStatus}</p>
+              ) : null}
             </CardContent>
           </Card>
 

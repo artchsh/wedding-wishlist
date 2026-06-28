@@ -28,6 +28,7 @@ import {
   replaceWishlist,
   sortCategories,
   starterItems,
+  triggerBackup,
   type WishlistItem,
 } from "./wishlist-data";
 
@@ -121,6 +122,7 @@ export function GuestWishlist() {
     try {
       await replaceWishlist(nextItems, categoryOrder);
       setItems(nextItems);
+      void triggerBackup();
     } finally {
       setSavingId(null);
     }
@@ -152,6 +154,7 @@ export function GuestWishlist() {
     try {
       await replaceWishlist(nextItems, categoryOrder);
       setItems(nextItems);
+      void triggerBackup();
     } finally {
       setSavingId(null);
     }

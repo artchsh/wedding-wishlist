@@ -305,3 +305,23 @@ export async function replaceWishlist(
 
   return payload;
 }
+
+export async function triggerBackup(): Promise<{
+  ok: boolean;
+  error?: string;
+}> {
+  try {
+    const response = await fetch("/api/backup", { method: "POST" });
+
+    if (!response.ok) {
+      const data = (await response.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+      return { ok: false, error: data?.error ?? `HTTP ${response.status}` };
+    }
+
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Не удалось связаться с сервером." };
+  }
+}
