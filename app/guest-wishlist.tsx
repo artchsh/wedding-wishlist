@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardFooter,
@@ -241,7 +240,7 @@ export function GuestWishlist() {
                     </p>
                   </div>
                   <div className="-mx-4 overflow-x-auto px-4 pb-3 sm:mx-0 sm:overflow-visible sm:px-0 sm:pb-0">
-                    <div className="flex snap-x snap-mandatory gap-4 sm:grid sm:snap-none sm:grid-cols-2 lg:grid-cols-3">
+                    <div className="flex snap-x snap-mandatory gap-4 pt-2 sm:grid sm:snap-none sm:grid-cols-2 lg:grid-cols-3">
                       {group.items.map((item) => (
                         <GiftCard
                           key={item.id}
@@ -296,7 +295,7 @@ function GiftCard({
 
   return (
     <Card
-      className={`w-[82vw] shrink-0 snap-start sm:w-auto ${
+      className={`w-[82vw] shrink-0 snap-start sm:w-auto pt-0 ${
         reservedByCurrentGuest
           ? "ring-2 ring-primary/40"
           : reservedByOther
@@ -304,26 +303,37 @@ function GiftCard({
             : ""
       }`}
     >
-      {item.imageUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={item.imageUrl}
-          alt={item.title}
-          className="aspect-[4/3] w-full object-cover"
-        />
-      ) : null}
-      <CardHeader>
-        <CardTitle>{item.title}</CardTitle>
-        <CardDescription>{item.note || "Подарок из вишлиста"}</CardDescription>
-        <CardAction>
+      <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
+        {item.imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={item.imageUrl}
+            alt={item.title}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
+            Изображение не добавлено
+          </div>
+        )}
+        <div className="absolute right-3 top-3">
           {reservedByCurrentGuest ? (
-            <Badge variant="default">Вы забронировали</Badge>
+            <Badge variant="default" className="shadow-sm">
+              Вы забронировали
+            </Badge>
           ) : (
-            <Badge variant={reserved ? "secondary" : "outline"}>
+            <Badge
+              variant={reserved ? "secondary" : "outline"}
+              className="bg-background/90 shadow-sm backdrop-blur"
+            >
               {reserved ? "Занято" : "Свободно"}
             </Badge>
           )}
-        </CardAction>
+        </div>
+      </div>
+      <CardHeader>
+        <CardTitle>{item.title}</CardTitle>
+        <CardDescription>{item.note || "Подарок из вишлиста"}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
         {item.deliveryEstimate ? (

@@ -126,11 +126,11 @@ function normalizeDeliveryEstimate(value: unknown): DeliveryEstimate {
 
 export function formatDeliveryEstimate(value: DeliveryEstimate) {
   if (value === "SHORT") {
-    return "SHORT DELIVERY (1-2 WEEKS)";
+    return "До 2 недель";
   }
 
   if (value === "LONG") {
-    return "LONG DELIVERY (2+ WEEKS)";
+    return "Долгая доставка (2+ недели)";
   }
 
   return "";

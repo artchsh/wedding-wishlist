@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardFooter,
@@ -318,8 +317,12 @@ export function AdminWishlist() {
                     className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                   >
                     <option value="">Не указано</option>
-                    <option value="SHORT">SHORT DELIVERY (1-2 WEEKS)</option>
-                    <option value="LONG">LONG DELIVERY (2+ WEEKS)</option>
+                    <option value="SHORT">
+                      {formatDeliveryEstimate("SHORT")}
+                    </option>
+                    <option value="LONG">
+                      {formatDeliveryEstimate("LONG")}
+                    </option>
                   </select>
                 </Field>
                 <Field label="Описание" htmlFor="note">
@@ -414,22 +417,31 @@ function InventoryCard({
 
   return (
     <Card>
-      {item.imageUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={item.imageUrl}
-          alt={item.title}
-          className="aspect-[4/3] w-full object-cover"
-        />
-      ) : null}
+      <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
+        {item.imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={item.imageUrl}
+            alt={item.title}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
+            Изображение не добавлено
+          </div>
+        )}
+        <div className="absolute right-3 top-3">
+          <Badge
+            variant={reserved ? "secondary" : "default"}
+            className="shadow-sm"
+          >
+            {reserved ? "Занято" : "Свободно"}
+          </Badge>
+        </div>
+      </div>
       <CardHeader>
         <CardTitle>{item.title}</CardTitle>
         <CardDescription>{item.note || "Описание не добавлено."}</CardDescription>
-        <CardAction>
-          <Badge variant={reserved ? "secondary" : "default"}>
-            {reserved ? "Занято" : "Свободно"}
-          </Badge>
-        </CardAction>
       </CardHeader>
       <CardContent className="space-y-2">
         {item.category ? (
