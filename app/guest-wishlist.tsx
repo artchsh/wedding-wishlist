@@ -26,6 +26,7 @@ import {
   parsePrice,
   parseReservedNames,
   replaceWishlist,
+  sortCategories,
   starterItems,
   type WishlistItem,
 } from "./wishlist-data";
@@ -46,6 +47,7 @@ export function GuestWishlist() {
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [usdToKztRate, setUsdToKztRate] = useState<number | null>(null);
+  const [categoryOrder, setCategoryOrder] = useState<string[]>([]);
 
   const visibleItems = useMemo(
     () => filterItemsByPrice(items, minPrice, maxPrice, usdToKztRate),
@@ -56,8 +58,8 @@ export function GuestWishlist() {
     [visibleItems]
   );
   const categoryGroups = useMemo(
-    () => groupItemsByCategory(visibleItems, usdToKztRate),
-    [visibleItems, usdToKztRate]
+    () => groupItemsByCategory(visibleItems, usdToKztRate, categoryOrder),
+    [visibleItems, usdToKztRate, categoryOrder]
   );
   const filtersActive = Boolean(minPrice || maxPrice);
 
@@ -72,6 +74,7 @@ export function GuestWishlist() {
         if (wishlistResult.status === "fulfilled") {
           const document = wishlistResult.value;
           setItems(document.items.length ? document.items : starterItems);
+          setCategoryOrder(document.categoryOrder ?? []);
         } else {
           setItems(starterItems);
         }
@@ -116,7 +119,7 @@ export function GuestWishlist() {
     setSavingId(itemId);
 
     try {
-      await replaceWishlist(nextItems);
+      await replaceWishlist(nextItems, categoryOrder);
       setItems(nextItems);
     } finally {
       setSavingId(null);
@@ -147,7 +150,7 @@ export function GuestWishlist() {
     setSavingId(itemId);
 
     try {
-      await replaceWishlist(nextItems);
+      await replaceWishlist(nextItems, categoryOrder);
       setItems(nextItems);
     } finally {
       setSavingId(null);
@@ -440,7 +443,8 @@ function isReservedByCurrentGuest(item: WishlistItem, guestName: string) {
 
 function groupItemsByCategory(
   items: WishlistItem[],
-  usdToKztRate: number | null
+  usdToKztRate: number | null,
+  categoryOrder: string[]
 ) {
   const groups = new Map<string, WishlistItem[]>();
 
@@ -449,17 +453,12 @@ function groupItemsByCategory(
     groups.set(category, [...(groups.get(category) ?? []), item]);
   }
 
-  return Array.from(groups.entries())
-    .map(([category, groupItems]) => ({
+  return sortCategories(Array.from(groups.keys()), categoryOrder).map(
+    (category) => ({
       category,
-      items: sortByPriceWithReservedLast(groupItems, usdToKztRate),
-    }))
-    .sort((first, second) => {
-      if (first.category === "Другое") return 1;
-      if (second.category === "Другое") return -1;
-
-      return first.category.localeCompare(second.category, "ru");
-    });
+      items: sortByPriceWithReservedLast(groups.get(category)!, usdToKztRate),
+    })
+  );
 }
 
 function sortByPriceWithReservedLast(

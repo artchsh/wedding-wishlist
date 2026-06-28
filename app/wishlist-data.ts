@@ -21,6 +21,7 @@ export type WishlistItem = {
 
 export type WishlistDocument = {
   items: WishlistItem[];
+  categoryOrder?: string[];
   updatedAt?: string;
 };
 
@@ -81,6 +82,11 @@ export function normalizeWishlist(data: unknown): WishlistDocument {
     return {
       items: Array.isArray(maybeItems)
         ? (maybeItems.map(normalizeItem).filter(Boolean) as WishlistItem[])
+        : [],
+      categoryOrder: Array.isArray(record.categoryOrder)
+        ? record.categoryOrder.filter(
+            (value): value is string => typeof value === "string"
+          )
         : [],
       updatedAt:
         typeof record.updatedAt === "string" ? record.updatedAt : undefined,
@@ -170,6 +176,25 @@ export async function fetchWishlist(signal?: AbortSignal) {
   return normalizeWishlist(await response.json());
 }
 
+export function sortCategories(categories: string[], order: string[]) {
+  return [...categories].sort((first, second) => {
+    const firstIndex = order.indexOf(first);
+    const secondIndex = order.indexOf(second);
+
+    if (firstIndex !== -1 && secondIndex !== -1) {
+      return firstIndex - secondIndex;
+    }
+
+    if (firstIndex !== -1) return -1;
+    if (secondIndex !== -1) return 1;
+
+    if (first === "Другое") return 1;
+    if (second === "Другое") return -1;
+
+    return first.localeCompare(second, "ru");
+  });
+}
+
 export function isItemLocked(
   item: Pick<WishlistItem, "reservedBy" | "unlimitedReservation">
 ) {
@@ -256,9 +281,13 @@ export async function fetchUsdToKztRate(signal?: AbortSignal) {
     : null;
 }
 
-export async function replaceWishlist(items: WishlistItem[]) {
+export async function replaceWishlist(
+  items: WishlistItem[],
+  categoryOrder: string[]
+) {
   const payload: WishlistDocument = {
     items,
+    categoryOrder,
     updatedAt: new Date().toISOString(),
   };
 

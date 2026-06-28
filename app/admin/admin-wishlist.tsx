@@ -2,6 +2,8 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
+  ArrowDown,
+  ArrowUp,
   ExternalLink,
   Loader2,
   Pencil,
@@ -31,6 +33,7 @@ import {
   formatDeliveryEstimate,
   formatOriginalPrice,
   isItemLocked,
+  sortCategories,
   type DeliveryEstimate,
   type PriceCurrency,
   replaceWishlist,
@@ -81,6 +84,7 @@ export function AdminWishlist() {
   const [status, setStatus] = useState("Загрузка списка...");
   const [error, setError] = useState("");
   const [lastUpdated, setLastUpdated] = useState<string | undefined>();
+  const [categoryOrder, setCategoryOrder] = useState<string[]>([]);
 
   const reservedCount = items.filter(isItemLocked).length;
   const openCount = items.length - reservedCount;
@@ -91,6 +95,10 @@ export function AdminWishlist() {
         new Set(items.map((item) => item.category).filter(Boolean))
       ).sort((first, second) => first.localeCompare(second, "ru")),
     [items]
+  );
+  const orderedCategories = useMemo(
+    () => sortCategories(categories, categoryOrder),
+    [categories, categoryOrder]
   );
 
   useEffect(() => {
@@ -126,6 +134,7 @@ export function AdminWishlist() {
     try {
       const document = await fetchWishlist();
       setItems(document.items.length ? document.items : starterItems);
+      setCategoryOrder(document.categoryOrder ?? []);
       setLastUpdated(document.updatedAt);
       setStatus(
         document.items.length
@@ -141,14 +150,19 @@ export function AdminWishlist() {
     }
   }
 
-  async function persist(nextItems: WishlistItem[], busyId: string) {
+  async function persist(
+    nextItems: WishlistItem[],
+    busyId: string,
+    nextCategoryOrder: string[] = categoryOrder
+  ) {
     setSavingId(busyId);
     setError("");
     setStatus("Сохранение изменений...");
 
     try {
-      const document = await replaceWishlist(nextItems);
+      const document = await replaceWishlist(nextItems, nextCategoryOrder);
       setItems(nextItems);
+      setCategoryOrder(nextCategoryOrder);
       setLastUpdated(document.updatedAt);
       setStatus("Изменения сохранены.");
     } catch {
@@ -157,6 +171,21 @@ export function AdminWishlist() {
     } finally {
       setSavingId(null);
     }
+  }
+
+  async function moveCategory(category: string, direction: -1 | 1) {
+    const index = orderedCategories.indexOf(category);
+    const targetIndex = index + direction;
+
+    if (targetIndex < 0 || targetIndex >= orderedCategories.length) return;
+
+    const nextOrder = [...orderedCategories];
+    [nextOrder[index], nextOrder[targetIndex]] = [
+      nextOrder[targetIndex],
+      nextOrder[index],
+    ];
+
+    await persist(items, "category-order", nextOrder);
   }
 
   async function addGift(event: FormEvent<HTMLFormElement>) {
@@ -346,6 +375,52 @@ export function AdminWishlist() {
               </div>
             </CardContent>
           </Card>
+
+          {orderedCategories.length > 1 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Порядок секций</CardTitle>
+                <CardDescription>
+                  Определяет порядок категорий на главной странице.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {orderedCategories.map((category, index) => (
+                  <div
+                    key={category}
+                    className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm"
+                  >
+                    <span>{category}</span>
+                    <div className="flex gap-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => moveCategory(category, -1)}
+                        disabled={
+                          savingId === "category-order" || index === 0
+                        }
+                      >
+                        <ArrowUp />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => moveCategory(category, 1)}
+                        disabled={
+                          savingId === "category-order" ||
+                          index === orderedCategories.length - 1
+                        }
+                      >
+                        <ArrowDown />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          ) : null}
 
           <Card>
             <CardHeader>
