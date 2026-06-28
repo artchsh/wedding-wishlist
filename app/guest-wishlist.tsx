@@ -17,8 +17,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  fetchUsdToKztRate,
+  formatDeliveryEstimate,
   fetchWishlist,
   formatKztPrice,
+  formatOriginalPrice,
+  getPriceInKzt,
   parsePrice,
   replaceWishlist,
   starterItems,
@@ -40,10 +44,11 @@ export function GuestWishlist() {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
+  const [usdToKztRate, setUsdToKztRate] = useState<number | null>(null);
 
   const visibleItems = useMemo(
-    () => filterItemsByPrice(items, minPrice, maxPrice),
-    [items, minPrice, maxPrice]
+    () => filterItemsByPrice(items, minPrice, maxPrice, usdToKztRate),
+    [items, minPrice, maxPrice, usdToKztRate]
   );
   const openCount = useMemo(
     () => visibleItems.filter((item) => !item.reservedBy).length,
@@ -58,12 +63,21 @@ export function GuestWishlist() {
   useEffect(() => {
     const controller = new AbortController();
 
-    fetchWishlist(controller.signal)
-      .then((document) => {
-        setItems(document.items.length ? document.items : starterItems);
-      })
-      .catch(() => {
-        setItems(starterItems);
+    Promise.allSettled([
+      fetchWishlist(controller.signal),
+      fetchUsdToKztRate(controller.signal),
+    ])
+      .then(([wishlistResult, rateResult]) => {
+        if (wishlistResult.status === "fulfilled") {
+          const document = wishlistResult.value;
+          setItems(document.items.length ? document.items : starterItems);
+        } else {
+          setItems(starterItems);
+        }
+
+        if (rateResult.status === "fulfilled") {
+          setUsdToKztRate(rateResult.value);
+        }
       })
       .finally(() => setLoading(false));
 
@@ -96,8 +110,6 @@ export function GuestWishlist() {
     try {
       await replaceWishlist(nextItems);
       setItems(nextItems);
-    } catch {
-      // silently ignore — card will retain its previous state
     } finally {
       setSavingId(null);
     }
@@ -119,8 +131,6 @@ export function GuestWishlist() {
     try {
       await replaceWishlist(nextItems);
       setItems(nextItems);
-    } catch {
-      // silently ignore
     } finally {
       setSavingId(null);
     }
@@ -164,15 +174,13 @@ export function GuestWishlist() {
         </header>
 
         <section className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="font-heading text-2xl font-semibold tracking-tight">
-                Подарки
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Свободно {openCount} из {visibleItems.length}
-              </p>
-            </div>
+          <div>
+            <h2 className="font-heading text-2xl font-semibold tracking-tight">
+              Подарки
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Свободно {openCount} из {visibleItems.length}
+            </p>
           </div>
 
           <Card>
@@ -203,7 +211,10 @@ export function GuestWishlist() {
                     type="button"
                     variant="ghost"
                     size="sm"
-                    onClick={() => { setMinPrice(""); setMaxPrice(""); }}
+                    onClick={() => {
+                      setMinPrice("");
+                      setMaxPrice("");
+                    }}
                     className="h-auto px-0 text-muted-foreground hover:text-foreground"
                   >
                     <X className="mr-1 h-3 w-3" />
@@ -220,16 +231,14 @@ export function GuestWishlist() {
             <div className="space-y-8">
               {categoryGroups.map((group) => (
                 <section key={group.category} className="space-y-3">
-                  <div className="flex items-end justify-between gap-3">
-                    <div>
-                      <h3 className="font-heading text-xl font-semibold tracking-tight">
-                        {group.category}
-                      </h3>
-                      <p className="text-sm text-muted-foreground">
-                        {group.items.filter((item) => !item.reservedBy).length}{" "}
-                        из {group.items.length} свободно
-                      </p>
-                    </div>
+                  <div>
+                    <h3 className="font-heading text-xl font-semibold tracking-tight">
+                      {group.category}
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      {group.items.filter((item) => !item.reservedBy).length} из{" "}
+                      {group.items.length} свободно
+                    </p>
                   </div>
                   <div className="-mx-4 overflow-x-auto px-4 pb-3 sm:mx-0 sm:overflow-visible sm:px-0 sm:pb-0">
                     <div className="flex snap-x snap-mandatory gap-4 sm:grid sm:snap-none sm:grid-cols-2 lg:grid-cols-3">
@@ -239,6 +248,7 @@ export function GuestWishlist() {
                           item={item}
                           guestName={guestName}
                           saving={savingId === item.id}
+                          usdToKztRate={usdToKztRate}
                           onReserve={() => reserveGift(item.id)}
                           onCancelReservation={() => cancelReservation(item.id)}
                         />
@@ -268,12 +278,14 @@ function GiftCard({
   item,
   guestName,
   saving,
+  usdToKztRate,
   onReserve,
   onCancelReservation,
 }: {
   item: WishlistItem;
   guestName: string;
   saving: boolean;
+  usdToKztRate: number | null;
   onReserve: () => void;
   onCancelReservation: () => void;
 }) {
@@ -288,8 +300,8 @@ function GiftCard({
         reservedByCurrentGuest
           ? "ring-2 ring-primary/40"
           : reservedByOther
-          ? "opacity-60"
-          : ""
+            ? "opacity-60"
+            : ""
       }`}
     >
       {item.imageUrl ? (
@@ -305,7 +317,7 @@ function GiftCard({
         <CardDescription>{item.note || "Подарок из вишлиста"}</CardDescription>
         <CardAction>
           {reservedByCurrentGuest ? (
-            <Badge variant="default" className="bg-primary/80">Вы забронировали</Badge>
+            <Badge variant="default">Вы забронировали</Badge>
           ) : (
             <Badge variant={reserved ? "secondary" : "outline"}>
               {reserved ? "Занято" : "Свободно"}
@@ -314,8 +326,15 @@ function GiftCard({
         </CardAction>
       </CardHeader>
       <CardContent className="space-y-2">
+        {item.deliveryEstimate ? (
+          <Badge variant="secondary">
+            {formatDeliveryEstimate(item.deliveryEstimate)}
+          </Badge>
+        ) : null}
         {item.price ? (
-          <p className="text-sm font-medium">Цена: {formatKztPrice(item.price)}</p>
+          <p className="text-sm font-medium">
+            Цена: {formatDisplayPrice(item, usdToKztRate)}
+          </p>
         ) : null}
         {noName && !reserved ? (
           <p className="text-xs text-muted-foreground">
@@ -353,7 +372,7 @@ function GiftCard({
           <Button
             type="button"
             onClick={onReserve}
-            disabled={saving}
+            disabled={saving || noName}
             className="flex-1"
           >
             {saving ? <Loader2 className="animate-spin" /> : null}
@@ -383,13 +402,8 @@ function groupItemsByCategory(items: WishlistItem[]) {
   return Array.from(groups.entries())
     .map(([category, groupItems]) => ({ category, items: groupItems }))
     .sort((first, second) => {
-      if (first.category === "Другое") {
-        return 1;
-      }
-
-      if (second.category === "Другое") {
-        return -1;
-      }
+      if (first.category === "Другое") return 1;
+      if (second.category === "Другое") return -1;
 
       return first.category.localeCompare(second.category, "ru");
     });
@@ -398,28 +412,34 @@ function groupItemsByCategory(items: WishlistItem[]) {
 function filterItemsByPrice(
   items: WishlistItem[],
   minPrice: string,
-  maxPrice: string
+  maxPrice: string,
+  usdToKztRate: number | null
 ) {
   const min = parsePrice(minPrice);
   const max = parsePrice(maxPrice);
 
   return items.filter((item) => {
-    const price = parsePrice(item.price);
+    const price = getPriceInKzt(item, usdToKztRate);
 
     if (price === null) {
       return min === null && max === null;
     }
 
-    if (min !== null && price < min) {
-      return false;
-    }
-
-    if (max !== null && price > max) {
-      return false;
-    }
+    if (min !== null && price < min) return false;
+    if (max !== null && price > max) return false;
 
     return true;
   });
+}
+
+function formatDisplayPrice(item: WishlistItem, usdToKztRate: number | null) {
+  const priceInKzt = getPriceInKzt(item, usdToKztRate);
+
+  if (priceInKzt !== null) {
+    return formatKztPrice(priceInKzt);
+  }
+
+  return formatOriginalPrice(item);
 }
 
 function GiftSkeletonGrid() {

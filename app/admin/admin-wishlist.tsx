@@ -22,7 +22,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
   fetchWishlist,
-  formatKztPrice,
+  formatDeliveryEstimate,
+  formatOriginalPrice,
+  type DeliveryEstimate,
+  type PriceCurrency,
   replaceWishlist,
   starterItems,
   type WishlistItem,
@@ -35,6 +38,8 @@ const emptyForm = {
   imageUrl: "",
   category: "",
   price: "",
+  priceCurrency: "KZT" as PriceCurrency,
+  deliveryEstimate: "" as DeliveryEstimate,
 };
 
 export function AdminWishlist() {
@@ -119,6 +124,8 @@ export function AdminWishlist() {
       imageUrl: form.imageUrl.trim(),
       category: form.category.trim(),
       price: form.price.trim(),
+      priceCurrency: form.priceCurrency,
+      deliveryEstimate: form.deliveryEstimate,
       reservedBy: "",
       createdAt: new Date().toISOString(),
     };
@@ -276,8 +283,44 @@ export function AdminWishlist() {
                     onChange={(event) =>
                       setForm({ ...form, price: event.target.value })
                     }
-                    placeholder="150 000 ₸"
+                    placeholder={
+                      form.priceCurrency === "USD" ? "250" : "150 000"
+                    }
                   />
+                </Field>
+                <Field label="Валюта" htmlFor="priceCurrency">
+                  <select
+                    id="priceCurrency"
+                    value={form.priceCurrency}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        priceCurrency: event.target.value as PriceCurrency,
+                      })
+                    }
+                    className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
+                    <option value="KZT">₸ KZT</option>
+                    <option value="USD">$ USD</option>
+                  </select>
+                </Field>
+                <Field label="Доставка" htmlFor="deliveryEstimate">
+                  <select
+                    id="deliveryEstimate"
+                    value={form.deliveryEstimate}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        deliveryEstimate: event.target
+                          .value as DeliveryEstimate,
+                      })
+                    }
+                    className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
+                    <option value="">Не указано</option>
+                    <option value="SHORT">SHORT DELIVERY (1-2 WEEKS)</option>
+                    <option value="LONG">LONG DELIVERY (2+ WEEKS)</option>
+                  </select>
                 </Field>
                 <Field label="Описание" htmlFor="note">
                   <Textarea
@@ -392,8 +435,13 @@ function InventoryCard({
         {item.category ? (
           <Badge variant="outline">{item.category}</Badge>
         ) : null}
+        {item.deliveryEstimate ? (
+          <Badge variant="secondary">
+            {formatDeliveryEstimate(item.deliveryEstimate)}
+          </Badge>
+        ) : null}
         {item.price ? (
-          <p className="text-sm font-medium">Цена: {formatKztPrice(item.price)}</p>
+          <p className="text-sm font-medium">Цена: {formatOriginalPrice(item)}</p>
         ) : null}
         {reserved ? (
           <p className="text-sm text-muted-foreground">
