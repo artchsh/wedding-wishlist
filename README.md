@@ -1,36 +1,81 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Wedding Wishlist
 
-## Getting Started
+A small Next.js app for managing a wedding gift wishlist: guests browse gifts and reserve them
+by name, and a password-gated admin panel manages the inventory. Deployed on Cloudflare Workers.
 
-First, run the development server:
+- **Guest page** (`/`): browse gifts by category, reserve/cancel, or send cash via Kaspi transfer.
+- **Admin page** (`/admin`): add/edit/delete gifts, reorder categories, auto-import a gift from a
+  Kaspi.kz product link, and trigger a manual Discord backup.
+
+For the full architecture, deployment process, and known gotchas, see [`docs/`](docs/) —
+start with [`docs/architecture.md`](docs/architecture.md).
+
+## Tech stack
+
+- Next.js 16 (App Router) + React 19 + TypeScript
+- Tailwind CSS v4 + shadcn/ui (Radix primitives)
+- `motion` (Framer Motion successor) for card-reorder animations
+- Cloudflare Workers via `@opennextjs/cloudflare` (OpenNext adapter) + Wrangler
+- Cloudflare R2 for data storage, Cloudflare's edge Cache API for read caching
+- Discord webhook for JSON backups after every write
+
+## Getting started
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) for the guest page, `/admin` for the admin
+panel (password is in `app/admin/admin-wishlist.tsx`, `ADMIN_PASSWORD`).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Copy `.env.example` to `.env.local` and fill in a Discord webhook URL if you want backups to work
+locally:
 
-## Learn More
+```bash
+cp .env.example .env.local
+```
 
-To learn more about Next.js, take a look at the following resources:
+Local dev reads R2 from a **local, empty** emulated bucket (separate from production) — the
+guest/admin pages will show no gifts until you add some through `/admin`, which is expected.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Type-checking and linting
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npx tsc --noEmit
+npm run lint
+```
 
-## Deploy on Vercel
+## Deploying
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Pushing to `master` triggers Cloudflare Workers Builds, which builds and deploys automatically.
+To deploy manually:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run deploy
+```
+
+See [`docs/deployment.md`](docs/deployment.md) for the one-time Cloudflare setup (R2 bucket,
+secrets) and CI configuration details.
+
+## Project structure
+
+```
+app/
+  page.tsx                  Guest page (renders GuestWishlist)
+  guest-wishlist.tsx         Guest UI: browse, reserve, cancel, animations
+  admin/
+    page.tsx                Admin page (renders AdminWishlist)
+    admin-wishlist.tsx       Admin UI: CRUD, category order, Kaspi import, backups
+  wishlist-data.ts          Shared types, normalization, client-side fetch helpers
+  api/
+    wishlist/route.ts        GET/POST the wishlist JSON (R2-backed, edge-cached)
+    wishlist/store.ts         Server-only R2 read helper (shared by wishlist + backup routes)
+    backup/route.ts          POSTs the current wishlist JSON to Discord as a file
+    parse-kaspi/route.ts      Scrapes a Kaspi.kz product page for title/price/image/category
+scripts/
+  scrape-products.py         Playwright scraper used to bulk-import gifts from ITEMS_URLS.md
+docs/                        Architecture, storage, deployment, admin, and gotchas docs
+```
