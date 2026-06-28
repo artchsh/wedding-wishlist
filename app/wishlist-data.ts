@@ -325,3 +325,35 @@ export async function triggerBackup(): Promise<{
     return { ok: false, error: "Не удалось связаться с сервером." };
   }
 }
+
+export type KaspiParseResult = {
+  ok: boolean;
+  error?: string;
+  title?: string;
+  imageUrl?: string;
+  category?: string;
+  price?: string;
+  priceCurrency?: PriceCurrency;
+};
+
+export async function parseKaspiUrl(url: string): Promise<KaspiParseResult> {
+  try {
+    const response = await fetch("/api/parse-kaspi", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    });
+
+    const data = (await response.json().catch(() => null)) as
+      | KaspiParseResult
+      | null;
+
+    if (!response.ok) {
+      return { ok: false, error: data?.error ?? `HTTP ${response.status}` };
+    }
+
+    return data ?? { ok: false, error: "Пустой ответ сервера." };
+  } catch {
+    return { ok: false, error: "Не удалось связаться с сервером." };
+  }
+}

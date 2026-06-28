@@ -10,6 +10,7 @@ import {
   RefreshCw,
   Send,
   Trash2,
+  Wand2,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -34,6 +35,7 @@ import {
   formatDeliveryEstimate,
   formatOriginalPrice,
   isItemLocked,
+  parseKaspiUrl,
   sortCategories,
   type DeliveryEstimate,
   type PriceCurrency,
@@ -89,6 +91,9 @@ export function AdminWishlist() {
   const [categoryOrder, setCategoryOrder] = useState<string[]>([]);
   const [backupSending, setBackupSending] = useState(false);
   const [backupStatus, setBackupStatus] = useState("");
+  const [kaspiUrl, setKaspiUrl] = useState("");
+  const [kaspiParsing, setKaspiParsing] = useState(false);
+  const [kaspiError, setKaspiError] = useState("");
 
   const reservedCount = items.filter(isItemLocked).length;
   const openCount = items.length - reservedCount;
@@ -202,6 +207,34 @@ export function AdminWishlist() {
     ];
 
     await persist(items, "category-order", nextOrder);
+  }
+
+  async function handleKaspiParse() {
+    const url = kaspiUrl.trim();
+    if (!url) return;
+
+    setKaspiParsing(true);
+    setKaspiError("");
+
+    const result = await parseKaspiUrl(url);
+
+    if (!result.ok) {
+      setKaspiError(result.error ?? "Не удалось распознать товар.");
+      setKaspiParsing(false);
+      return;
+    }
+
+    setForm((current) => ({
+      ...current,
+      title: result.title || current.title,
+      imageUrl: result.imageUrl || current.imageUrl,
+      category: result.category || current.category,
+      price: result.price || current.price,
+      priceCurrency: result.priceCurrency ?? current.priceCurrency,
+      url,
+    }));
+    setKaspiUrl("");
+    setKaspiParsing(false);
   }
 
   async function addGift(event: FormEvent<HTMLFormElement>) {
@@ -462,7 +495,40 @@ export function AdminWishlist() {
                 Новые подарки появятся на главной странице.
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              <div className="space-y-2 border p-3">
+                <Label htmlFor="kaspi-url">Вставить ссылку с Kaspi.kz</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="kaspi-url"
+                    type="url"
+                    value={kaspiUrl}
+                    onChange={(event) => setKaspiUrl(event.target.value)}
+                    placeholder="https://kaspi.kz/shop/p/..."
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleKaspiParse}
+                    disabled={kaspiParsing || !kaspiUrl.trim()}
+                  >
+                    {kaspiParsing ? (
+                      <Loader2 className="animate-spin" />
+                    ) : (
+                      <Wand2 />
+                    )}
+                    Распознать
+                  </Button>
+                </div>
+                {kaspiError ? (
+                  <p className="text-xs text-destructive">{kaspiError}</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Заполнит название, фото, цену и категорию автоматически — проверьте перед сохранением.
+                  </p>
+                )}
+              </div>
+              <Separator />
               <form className="space-y-4" onSubmit={addGift}>
                 <GiftFormFields
                   idPrefix="add"
