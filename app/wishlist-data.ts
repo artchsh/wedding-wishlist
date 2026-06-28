@@ -15,6 +15,7 @@ export type WishlistItem = {
   priceCurrency: PriceCurrency;
   deliveryEstimate: DeliveryEstimate;
   reservedBy: string;
+  unlimitedReservation: boolean;
   createdAt: string;
 };
 
@@ -35,6 +36,7 @@ export const starterItems: WishlistItem[] = [
     priceCurrency: "KZT",
     deliveryEstimate: "SHORT",
     reservedBy: "",
+    unlimitedReservation: false,
     createdAt: new Date().toISOString(),
   },
   {
@@ -48,6 +50,7 @@ export const starterItems: WishlistItem[] = [
     priceCurrency: "KZT",
     deliveryEstimate: "LONG",
     reservedBy: "",
+    unlimitedReservation: false,
     createdAt: new Date().toISOString(),
   },
   {
@@ -61,6 +64,7 @@ export const starterItems: WishlistItem[] = [
     priceCurrency: "KZT",
     deliveryEstimate: "SHORT",
     reservedBy: "",
+    unlimitedReservation: false,
     createdAt: new Date().toISOString(),
   },
 ];
@@ -113,6 +117,10 @@ function normalizeItem(item: unknown): WishlistItem | null {
     deliveryEstimate: normalizeDeliveryEstimate(record.deliveryEstimate),
     reservedBy:
       typeof record.reservedBy === "string" ? record.reservedBy : "",
+    unlimitedReservation:
+      typeof record.unlimitedReservation === "boolean"
+        ? record.unlimitedReservation
+        : false,
     createdAt:
       typeof record.createdAt === "string"
         ? record.createdAt
@@ -160,6 +168,19 @@ export async function fetchWishlist(signal?: AbortSignal) {
   }
 
   return normalizeWishlist(await response.json());
+}
+
+export function isItemLocked(
+  item: Pick<WishlistItem, "reservedBy" | "unlimitedReservation">
+) {
+  return Boolean(item.reservedBy) && !item.unlimitedReservation;
+}
+
+export function parseReservedNames(reservedBy: string) {
+  return reservedBy
+    .split(",")
+    .map((name) => name.trim())
+    .filter(Boolean);
 }
 
 export function parsePrice(value: string) {

@@ -22,7 +22,9 @@ import {
   formatKztPrice,
   formatOriginalPrice,
   getPriceInKzt,
+  isItemLocked,
   parsePrice,
+  parseReservedNames,
   replaceWishlist,
   starterItems,
   type WishlistItem,
@@ -50,12 +52,12 @@ export function GuestWishlist() {
     [items, minPrice, maxPrice, usdToKztRate]
   );
   const openCount = useMemo(
-    () => visibleItems.filter((item) => !item.reservedBy).length,
+    () => visibleItems.filter((item) => !isItemLocked(item)).length,
     [visibleItems]
   );
   const categoryGroups = useMemo(
-    () => groupItemsByCategory(visibleItems),
-    [visibleItems]
+    () => groupItemsByCategory(visibleItems, usdToKztRate),
+    [visibleItems, usdToKztRate]
   );
   const filtersActive = Boolean(minPrice || maxPrice);
 
@@ -98,11 +100,18 @@ export function GuestWishlist() {
 
     if (!name) return;
 
-    const nextItems = items.map((item) =>
-      item.id === itemId && !item.reservedBy
-        ? { ...item, reservedBy: name }
-        : item
-    );
+    const nextItems = items.map((item) => {
+      if (item.id !== itemId) return item;
+
+      if (item.unlimitedReservation) {
+        if (isReservedByCurrentGuest(item, name)) return item;
+
+        const names = [...parseReservedNames(item.reservedBy), name];
+        return { ...item, reservedBy: names.join(", ") };
+      }
+
+      return !item.reservedBy ? { ...item, reservedBy: name } : item;
+    });
 
     setSavingId(itemId);
 
@@ -119,11 +128,21 @@ export function GuestWishlist() {
 
     if (!name) return;
 
-    const nextItems = items.map((item) =>
-      item.id === itemId && isReservedByCurrentGuest(item, name)
-        ? { ...item, reservedBy: "" }
-        : item
-    );
+    const nextItems = items.map((item) => {
+      if (item.id !== itemId || !isReservedByCurrentGuest(item, name)) {
+        return item;
+      }
+
+      if (item.unlimitedReservation) {
+        const remaining = parseReservedNames(item.reservedBy).filter(
+          (reservedName) =>
+            reservedName.toLocaleLowerCase("ru") !== name.toLocaleLowerCase("ru")
+        );
+        return { ...item, reservedBy: remaining.join(", ") };
+      }
+
+      return { ...item, reservedBy: "" };
+    });
 
     setSavingId(itemId);
 
@@ -140,7 +159,7 @@ export function GuestWishlist() {
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">
         <header className="grid gap-6 lg:grid-cols-[1fr_320px] lg:items-end">
           <div className="space-y-3">
-            <Badge variant="secondary">Свадебный вишлист</Badge>
+            <Badge variant="secondary">Свадьба Гея и Би</Badge>
             <div className="space-y-2">
               <h1 className="font-heading text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
                 Выберите свадебный подарок
@@ -235,7 +254,7 @@ export function GuestWishlist() {
                       {group.category}
                     </h3>
                     <p className="text-sm text-muted-foreground">
-                      {group.items.filter((item) => !item.reservedBy).length} из{" "}
+                      {group.items.filter((item) => !isItemLocked(item)).length} из{" "}
                       {group.items.length} свободно
                     </p>
                   </div>
@@ -288,9 +307,13 @@ function GiftCard({
   onReserve: () => void;
   onCancelReservation: () => void;
 }) {
-  const reserved = Boolean(item.reservedBy);
   const reservedByCurrentGuest = isReservedByCurrentGuest(item, guestName);
-  const reservedByOther = reserved && !reservedByCurrentGuest;
+  const locked = isItemLocked(item);
+  const reservedByOther = locked && !reservedByCurrentGuest;
+  const otherReservers =
+    item.unlimitedReservation && item.reservedBy && !reservedByCurrentGuest
+      ? item.reservedBy
+      : "";
   const noName = !guestName.trim();
 
   return (
@@ -323,10 +346,10 @@ function GiftCard({
             </Badge>
           ) : (
             <Badge
-              variant={reserved ? "secondary" : "outline"}
+              variant={locked ? "secondary" : "outline"}
               className="bg-background/90 shadow-sm backdrop-blur"
             >
-              {reserved ? "Занято" : "Свободно"}
+              {locked ? "Занято" : "Свободно"}
             </Badge>
           )}
         </div>
@@ -346,13 +369,18 @@ function GiftCard({
             Цена: {formatDisplayPrice(item, usdToKztRate)}
           </p>
         ) : null}
-        {noName && !reserved ? (
+        {noName && !locked ? (
           <p className="text-xs text-muted-foreground">
             Введите имя выше для бронирования
           </p>
         ) : null}
+        {otherReservers ? (
+          <p className="text-xs text-muted-foreground">
+            Уже забронировали: {otherReservers}
+          </p>
+        ) : null}
       </CardContent>
-      <CardFooter className="gap-2">
+      <CardFooter className="gap-2 flex-wrap">
         {item.url ? (
           <Button asChild variant="outline" className="flex-1">
             <a href={item.url} target="_blank" rel="noreferrer">
@@ -378,7 +406,7 @@ function GiftCard({
             Снять бронь
           </Button>
         ) : null}
-        {!reserved ? (
+        {!locked && !reservedByCurrentGuest ? (
           <Button
             type="button"
             onClick={onReserve}
@@ -396,12 +424,24 @@ function GiftCard({
 
 function isReservedByCurrentGuest(item: WishlistItem, guestName: string) {
   const currentGuest = guestName.trim().toLocaleLowerCase("ru");
+
+  if (!currentGuest) return false;
+
+  if (item.unlimitedReservation) {
+    return parseReservedNames(item.reservedBy).some(
+      (name) => name.toLocaleLowerCase("ru") === currentGuest
+    );
+  }
+
   const reservedBy = item.reservedBy.trim().toLocaleLowerCase("ru");
 
-  return Boolean(currentGuest && reservedBy && currentGuest === reservedBy);
+  return Boolean(reservedBy && currentGuest === reservedBy);
 }
 
-function groupItemsByCategory(items: WishlistItem[]) {
+function groupItemsByCategory(
+  items: WishlistItem[],
+  usdToKztRate: number | null
+) {
   const groups = new Map<string, WishlistItem[]>();
 
   for (const item of items) {
@@ -410,13 +450,35 @@ function groupItemsByCategory(items: WishlistItem[]) {
   }
 
   return Array.from(groups.entries())
-    .map(([category, groupItems]) => ({ category, items: groupItems }))
+    .map(([category, groupItems]) => ({
+      category,
+      items: sortByPriceWithReservedLast(groupItems, usdToKztRate),
+    }))
     .sort((first, second) => {
       if (first.category === "Другое") return 1;
       if (second.category === "Другое") return -1;
 
       return first.category.localeCompare(second.category, "ru");
     });
+}
+
+function sortByPriceWithReservedLast(
+  items: WishlistItem[],
+  usdToKztRate: number | null
+) {
+  return [...items].sort((first, second) => {
+    const firstLocked = isItemLocked(first);
+    const secondLocked = isItemLocked(second);
+
+    if (firstLocked !== secondLocked) {
+      return firstLocked ? 1 : -1;
+    }
+
+    const firstPrice = getPriceInKzt(first, usdToKztRate) ?? Infinity;
+    const secondPrice = getPriceInKzt(second, usdToKztRate) ?? Infinity;
+
+    return firstPrice - secondPrice;
+  });
 }
 
 function filterItemsByPrice(

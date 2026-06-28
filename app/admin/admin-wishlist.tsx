@@ -30,6 +30,7 @@ import {
   fetchWishlist,
   formatDeliveryEstimate,
   formatOriginalPrice,
+  isItemLocked,
   type DeliveryEstimate,
   type PriceCurrency,
   replaceWishlist,
@@ -46,6 +47,7 @@ type GiftFormState = {
   price: string;
   priceCurrency: PriceCurrency;
   deliveryEstimate: DeliveryEstimate;
+  unlimitedReservation: boolean;
 };
 
 const emptyForm: GiftFormState = {
@@ -57,9 +59,18 @@ const emptyForm: GiftFormState = {
   price: "",
   priceCurrency: "KZT",
   deliveryEstimate: "",
+  unlimitedReservation: false,
 };
 
+const ADMIN_PASSWORD = "1508";
+const ADMIN_AUTH_STORAGE_KEY = "wedding-admin-unlocked";
+
 export function AdminWishlist() {
+  const [unlocked, setUnlocked] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [passwordInput, setPasswordInput] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+
   const [items, setItems] = useState<WishlistItem[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(true);
@@ -71,7 +82,7 @@ export function AdminWishlist() {
   const [error, setError] = useState("");
   const [lastUpdated, setLastUpdated] = useState<string | undefined>();
 
-  const reservedCount = items.filter((item) => item.reservedBy).length;
+  const reservedCount = items.filter(isItemLocked).length;
   const openCount = items.length - reservedCount;
   const syncLabel = useMemo(() => formatDate(lastUpdated), [lastUpdated]);
   const categories = useMemo(
@@ -83,8 +94,30 @@ export function AdminWishlist() {
   );
 
   useEffect(() => {
-    void loadWishlist();
+    // localStorage isn't available during SSR, so this can only be read client-side on mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setUnlocked(window.localStorage.getItem(ADMIN_AUTH_STORAGE_KEY) === "true");
+    setAuthChecked(true);
   }, []);
+
+  useEffect(() => {
+    if (unlocked) {
+      void loadWishlist();
+    }
+  }, [unlocked]);
+
+  function handleUnlock(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (passwordInput !== ADMIN_PASSWORD) {
+      setPasswordError("Неверный пароль.");
+      return;
+    }
+
+    window.localStorage.setItem(ADMIN_AUTH_STORAGE_KEY, "true");
+    setPasswordError("");
+    setUnlocked(true);
+  }
 
   async function loadWishlist() {
     setLoading(true);
@@ -146,6 +179,7 @@ export function AdminWishlist() {
       priceCurrency: form.priceCurrency,
       deliveryEstimate: form.deliveryEstimate,
       reservedBy: "",
+      unlimitedReservation: form.unlimitedReservation,
       createdAt: new Date().toISOString(),
     };
 
@@ -182,6 +216,7 @@ export function AdminWishlist() {
       price: item.price,
       priceCurrency: item.priceCurrency,
       deliveryEstimate: item.deliveryEstimate,
+      unlimitedReservation: item.unlimitedReservation,
     });
   }
 
@@ -210,12 +245,55 @@ export function AdminWishlist() {
             price: editForm.price.trim(),
             priceCurrency: editForm.priceCurrency,
             deliveryEstimate: editForm.deliveryEstimate,
+            unlimitedReservation: editForm.unlimitedReservation,
           }
         : item
     );
 
     await persist(nextItems, itemId);
     setEditingId(null);
+  }
+
+  if (!authChecked) {
+    return null;
+  }
+
+  if (!unlocked) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
+        <Card className="w-full max-w-sm">
+          <CardHeader>
+            <CardTitle>Админ</CardTitle>
+            <CardDescription>Введите пароль для доступа.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form className="space-y-4" onSubmit={handleUnlock}>
+              <Field label="Пароль" htmlFor="admin-password">
+                <Input
+                  id="admin-password"
+                  type="password"
+                  value={passwordInput}
+                  onChange={(event) => {
+                    setPasswordInput(event.target.value);
+                    setPasswordError("");
+                  }}
+                  autoFocus
+                  required
+                />
+              </Field>
+              {passwordError ? (
+                <Alert variant="destructive">
+                  <AlertDescription>{passwordError}</AlertDescription>
+                </Alert>
+              ) : null}
+              <Button type="submit" className="w-full">
+                Войти
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </main>
+    );
   }
 
   return (
@@ -384,6 +462,7 @@ function InventoryCard({
   onSaveEdit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   const reserved = Boolean(item.reservedBy);
+  const locked = isItemLocked(item);
 
   if (editing) {
     return (
@@ -437,10 +516,10 @@ function InventoryCard({
         )}
         <div className="absolute right-3 top-3">
           <Badge
-            variant={reserved ? "secondary" : "default"}
+            variant={locked ? "secondary" : "default"}
             className="shadow-sm"
           >
-            {reserved ? "Занято" : "Свободно"}
+            {locked ? "Занято" : "Свободно"}
           </Badge>
         </div>
       </div>
@@ -451,6 +530,9 @@ function InventoryCard({
       <CardContent className="space-y-2">
         {item.category ? (
           <Badge variant="outline">{item.category}</Badge>
+        ) : null}
+        {item.unlimitedReservation ? (
+          <Badge variant="outline">Несколько бронирований</Badge>
         ) : null}
         {item.deliveryEstimate ? (
           <Badge variant="secondary">
@@ -668,6 +750,29 @@ function GiftFormFields({
           placeholder="Полезные детали для гостей."
         />
       </Field>
+      <label
+        htmlFor={`${idPrefix}-unlimitedReservation`}
+        className="flex items-start gap-2 text-sm"
+      >
+        <input
+          id={`${idPrefix}-unlimitedReservation`}
+          type="checkbox"
+          checked={value.unlimitedReservation}
+          onChange={(event) =>
+            onChange({
+              ...value,
+              unlimitedReservation: event.target.checked,
+            })
+          }
+          className="mt-0.5 h-4 w-4 rounded border-input"
+        />
+        <span>
+          Разрешить несколько бронирований
+          <span className="block text-xs text-muted-foreground">
+            Подарок не блокируется — несколько гостей могут забронировать его одновременно.
+          </span>
+        </span>
+      </label>
     </>
   );
 }
