@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ExternalLink, Loader2, RefreshCw, Trash2, X } from "lucide-react";
+import Link from "next/link";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
   fetchWishlist,
+  formatKztPrice,
   replaceWishlist,
   starterItems,
   type WishlistItem,
@@ -40,6 +42,7 @@ export function AdminWishlist() {
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [status, setStatus] = useState("Загрузка списка...");
   const [error, setError] = useState("");
   const [lastUpdated, setLastUpdated] = useState<string | undefined>();
@@ -125,6 +128,7 @@ export function AdminWishlist() {
   }
 
   async function deleteGift(itemId: string) {
+    setConfirmDeleteId(null);
     await persist(
       items.filter((item) => item.id !== itemId),
       itemId
@@ -169,20 +173,25 @@ export function AdminWishlist() {
                   ))}
                 </div>
               ) : null}
-              <Button
-                type="button"
-                variant="outline"
-                onClick={loadWishlist}
-                disabled={loading}
-                className="w-full"
-              >
-                {loading ? (
-                  <Loader2 className="animate-spin" />
-                ) : (
-                  <RefreshCw />
-                )}
-                Обновить
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={loadWishlist}
+                  disabled={loading}
+                  className="flex-1"
+                >
+                  {loading ? (
+                    <Loader2 className="animate-spin" />
+                  ) : (
+                    <RefreshCw />
+                  )}
+                  Обновить
+                </Button>
+                <Button asChild variant="outline" className="flex-1">
+                  <Link href="/">Смотреть сайт</Link>
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
@@ -227,6 +236,20 @@ export function AdminWishlist() {
                     }
                     placeholder="https://example.com/image.jpg"
                   />
+                  {form.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={form.imageUrl}
+                      alt="Предпросмотр"
+                      className="mt-2 aspect-[4/3] w-full rounded-md object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = "none";
+                      }}
+                      onLoad={(e) => {
+                        (e.target as HTMLImageElement).style.display = "block";
+                      }}
+                    />
+                  ) : null}
                 </Field>
                 <Field label="Категория" htmlFor="category">
                   <Input
@@ -236,7 +259,15 @@ export function AdminWishlist() {
                       setForm({ ...form, category: event.target.value })
                     }
                     placeholder="Кухня, Дом, Путешествия..."
+                    list="category-suggestions"
                   />
+                  {categories.length ? (
+                    <datalist id="category-suggestions">
+                      {categories.map((cat) => (
+                        <option key={cat} value={cat} />
+                      ))}
+                    </datalist>
+                  ) : null}
                 </Field>
                 <Field label="Цена" htmlFor="price">
                   <Input
@@ -275,7 +306,7 @@ export function AdminWishlist() {
 
         <section className="space-y-4">
           <div>
-            <h1 className="text-3xl font-semibold tracking-tight">
+            <h1 className="font-heading text-3xl font-semibold tracking-tight">
               Список подарков
             </h1>
             <p className="text-muted-foreground">
@@ -292,13 +323,16 @@ export function AdminWishlist() {
           {loading ? (
             <InventorySkeleton />
           ) : items.length ? (
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {items.map((item) => (
                 <InventoryCard
                   key={item.id}
                   item={item}
                   busy={savingId === item.id}
+                  confirming={confirmDeleteId === item.id}
                   onDelete={() => deleteGift(item.id)}
+                  onConfirmDelete={() => setConfirmDeleteId(item.id)}
+                  onCancelDelete={() => setConfirmDeleteId(null)}
                   onRelease={() => releaseGift(item.id)}
                 />
               ))}
@@ -319,12 +353,18 @@ export function AdminWishlist() {
 function InventoryCard({
   item,
   busy,
+  confirming,
   onDelete,
+  onConfirmDelete,
+  onCancelDelete,
   onRelease,
 }: {
   item: WishlistItem;
   busy: boolean;
+  confirming: boolean;
   onDelete: () => void;
+  onConfirmDelete: () => void;
+  onCancelDelete: () => void;
   onRelease: () => void;
 }) {
   const reserved = Boolean(item.reservedBy);
@@ -336,7 +376,7 @@ function InventoryCard({
         <img
           src={item.imageUrl}
           alt={item.title}
-          className="aspect-[6/2] w-full object-cover"
+          className="aspect-[4/3] w-full object-cover"
         />
       ) : null}
       <CardHeader>
@@ -369,7 +409,7 @@ function InventoryCard({
           </Button>
         ) : null}
       </CardContent>
-      <CardFooter className="gap-2">
+      <CardFooter className="gap-2 flex-wrap">
         {reserved ? (
           <Button
             type="button"
@@ -382,16 +422,41 @@ function InventoryCard({
             Снять бронь
           </Button>
         ) : null}
-        <Button
-          type="button"
-          variant="destructive"
-          size="sm"
-          onClick={onDelete}
-          disabled={busy}
-        >
-          {busy ? <Loader2 className="animate-spin" /> : <Trash2 />}
-          Удалить
-        </Button>
+        {confirming ? (
+          <>
+            <span className="text-xs text-muted-foreground">Удалить?</span>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={onDelete}
+              disabled={busy}
+            >
+              {busy ? <Loader2 className="animate-spin" /> : null}
+              Да
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onCancelDelete}
+              disabled={busy}
+            >
+              Отмена
+            </Button>
+          </>
+        ) : (
+          <Button
+            type="button"
+            variant="destructive"
+            size="sm"
+            onClick={onConfirmDelete}
+            disabled={busy}
+          >
+            {busy ? <Loader2 className="animate-spin" /> : <Trash2 />}
+            Удалить
+          </Button>
+        )}
       </CardFooter>
     </Card>
   );
@@ -425,9 +490,10 @@ function Metric({ label, value }: { label: string; value: number }) {
 
 function InventorySkeleton() {
   return (
-    <div className="grid gap-4">
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
       {Array.from({ length: 4 }).map((_, index) => (
         <Card key={index}>
+          <Skeleton className="aspect-[4/3] w-full rounded-none rounded-t-xl" />
           <CardHeader>
             <Skeleton className="h-5 w-1/3" />
             <Skeleton className="h-4 w-2/3" />
@@ -459,21 +525,4 @@ function formatDate(value: string | undefined) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
-}
-
-function parsePrice(value: string) {
-  const normalized = value.replace(/[^\d]/g, "");
-  const parsed = Number.parseInt(normalized, 10);
-
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function formatKztPrice(value: string) {
-  const parsed = parsePrice(value);
-
-  if (parsed === null) {
-    return value;
-  }
-
-  return `${new Intl.NumberFormat("ru-KZ").format(parsed)} ₸`;
 }

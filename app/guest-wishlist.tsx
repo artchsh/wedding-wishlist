@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ExternalLink, Loader2 } from "lucide-react";
+import { ExternalLink, Loader2, X } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,8 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   fetchWishlist,
+  formatKztPrice,
+  parsePrice,
   replaceWishlist,
   starterItems,
   type WishlistItem,
@@ -56,6 +58,8 @@ export function GuestWishlist() {
     () => groupItemsByCategory(visibleItems),
     [visibleItems]
   );
+  const filtersActive = Boolean(minPrice || maxPrice);
+
   useEffect(() => {
     const controller = new AbortController();
 
@@ -82,6 +86,12 @@ export function GuestWishlist() {
       window.localStorage.removeItem(GUEST_NAME_STORAGE_KEY);
     }
   }, [guestName]);
+
+  useEffect(() => {
+    if (!message) return;
+    const id = setTimeout(() => setMessage(""), 5000);
+    return () => clearTimeout(id);
+  }, [message]);
 
   async function reserveGift(itemId: string) {
     const name = guestName.trim();
@@ -152,7 +162,7 @@ export function GuestWishlist() {
           <div className="space-y-3">
             <Badge variant="secondary">Свадебный вишлист</Badge>
             <div className="space-y-2">
-              <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
+              <h1 className="font-heading text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
                 Выберите свадебный подарок
               </h1>
               <p className="max-w-2xl text-muted-foreground">
@@ -166,7 +176,7 @@ export function GuestWishlist() {
             <CardHeader>
               <CardTitle>Ваше имя</CardTitle>
               <CardDescription>
-                Нужно только для отображения брони.
+                Нужно для бронирования подарка.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -183,30 +193,29 @@ export function GuestWishlist() {
         </header>
 
         {message ? (
-          <Alert variant={messageType}>
+          <Alert variant={messageType} className="relative pr-10">
             <AlertDescription>{message}</AlertDescription>
+            <button
+              type="button"
+              onClick={() => setMessage("")}
+              className="absolute top-3 right-3 text-muted-foreground hover:text-foreground"
+              aria-label="Закрыть"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </Alert>
         ) : null}
 
         <section className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-2xl font-semibold tracking-tight">
+              <h2 className="font-heading text-2xl font-semibold tracking-tight">
                 Подарки
               </h2>
               <p className="text-sm text-muted-foreground">
                 Свободно {openCount} из {visibleItems.length}
               </p>
             </div>
-            {/* {categoryGroups.length ? (
-              <div className="flex flex-wrap gap-2">
-                {categoryGroups.map((group) => (
-                  <Badge key={group.category} variant="outline">
-                    {group.category}
-                  </Badge>
-                ))}
-              </div>
-            ) : null} */}
           </div>
 
           <Card>
@@ -218,7 +227,7 @@ export function GuestWishlist() {
                   inputMode="numeric"
                   value={minPrice}
                   onChange={(event) => setMinPrice(event.target.value)}
-                  placeholder="50000"
+                  placeholder="50 000"
                 />
               </div>
               <div className="space-y-2">
@@ -228,9 +237,23 @@ export function GuestWishlist() {
                   inputMode="numeric"
                   value={maxPrice}
                   onChange={(event) => setMaxPrice(event.target.value)}
-                  placeholder="150000"
+                  placeholder="150 000"
                 />
               </div>
+              {filtersActive ? (
+                <div className="col-span-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { setMinPrice(""); setMaxPrice(""); }}
+                    className="h-auto px-0 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="mr-1 h-3 w-3" />
+                    Сбросить фильтры
+                  </Button>
+                </div>
+              ) : null}
             </CardContent>
           </Card>
 
@@ -242,7 +265,7 @@ export function GuestWishlist() {
                 <section key={group.category} className="space-y-3">
                   <div className="flex items-end justify-between gap-3">
                     <div>
-                      <h3 className="text-xl font-semibold tracking-tight">
+                      <h3 className="font-heading text-xl font-semibold tracking-tight">
                         {group.category}
                       </h3>
                       <p className="text-sm text-muted-foreground">
@@ -251,20 +274,17 @@ export function GuestWishlist() {
                       </p>
                     </div>
                   </div>
-                  <div className="-mx-4 overflow-x-auto px-4 pb-3 sm:mx-0 sm:overflow-visible sm:px-0 sm:pb-0">
-                    <div className="flex snap-x snap-mandatory gap-4 sm:grid sm:snap-none sm:grid-cols-2 lg:grid-cols-3">
-                      {group.items.map((item) => (
-                        <GiftCard
-                          key={item.id}
-                          item={item}
-                          guestName={guestName}
-                          saving={savingId === item.id}
-                          onReserve={() => reserveGift(item.id)}
-                          onCancelReservation={() => cancelReservation(item.id)}
-                        />
-                      ))}
-                      <div className="w-1 shrink-0 sm:hidden" aria-hidden="true" />
-                    </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {group.items.map((item) => (
+                      <GiftCard
+                        key={item.id}
+                        item={item}
+                        guestName={guestName}
+                        saving={savingId === item.id}
+                        onReserve={() => reserveGift(item.id)}
+                        onCancelReservation={() => cancelReservation(item.id)}
+                      />
+                    ))}
                   </div>
                 </section>
               ))}
@@ -272,7 +292,9 @@ export function GuestWishlist() {
           ) : (
             <Card>
               <CardContent className="py-10 text-center text-muted-foreground">
-                По выбранным фильтрам подарков нет.
+                {filtersActive
+                  ? "По выбранным фильтрам подарков нет."
+                  : "Подарков пока нет."}
               </CardContent>
             </Card>
           )}
@@ -297,10 +319,18 @@ function GiftCard({
 }) {
   const reserved = Boolean(item.reservedBy);
   const reservedByCurrentGuest = isReservedByCurrentGuest(item, guestName);
+  const reservedByOther = reserved && !reservedByCurrentGuest;
+  const noName = !guestName.trim();
 
   return (
     <Card
-      className={`w-[82vw] shrink-0 snap-start sm:w-auto ${reserved ? "opacity-70" : ""}`}
+      className={
+        reservedByCurrentGuest
+          ? "ring-2 ring-primary/40"
+          : reservedByOther
+          ? "opacity-60"
+          : ""
+      }
     >
       {item.imageUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
@@ -314,14 +344,23 @@ function GiftCard({
         <CardTitle>{item.title}</CardTitle>
         <CardDescription>{item.note || "Подарок из вишлиста"}</CardDescription>
         <CardAction>
-          <Badge variant={reserved ? "secondary" : "default"}>
-            {reserved ? "Занято" : "Свободно"}
-          </Badge>
+          {reservedByCurrentGuest ? (
+            <Badge variant="default" className="bg-primary/80">Вы забронировали</Badge>
+          ) : (
+            <Badge variant={reserved ? "secondary" : "outline"}>
+              {reserved ? "Занято" : "Свободно"}
+            </Badge>
+          )}
         </CardAction>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-2">
         {item.price ? (
           <p className="text-sm font-medium">Цена: {formatKztPrice(item.price)}</p>
+        ) : null}
+        {noName && !reserved ? (
+          <p className="text-xs text-muted-foreground">
+            Введите имя выше для бронирования
+          </p>
         ) : null}
       </CardContent>
       <CardFooter className="gap-2">
@@ -333,7 +372,7 @@ function GiftCard({
             </a>
           </Button>
         ) : null}
-        {reserved && !reservedByCurrentGuest ? (
+        {reservedByOther ? (
           <p className="flex-1 text-sm text-muted-foreground">
             Забронировано: {item.reservedBy}
           </p>
@@ -360,9 +399,7 @@ function GiftCard({
             {saving ? <Loader2 className="animate-spin" /> : null}
             Забронировать
           </Button>
-        ) : (
-          null
-        )}
+        ) : null}
       </CardFooter>
     </Card>
   );
@@ -425,35 +462,18 @@ function filterItemsByPrice(
   });
 }
 
-function parsePrice(value: string) {
-  const normalized = value.replace(/[^\d]/g, "");
-  const parsed = Number.parseInt(normalized, 10);
-
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function formatKztPrice(value: string) {
-  const parsed = parsePrice(value);
-
-  if (parsed === null) {
-    return value;
-  }
-
-  return `${new Intl.NumberFormat("ru-KZ").format(parsed)} ₸`;
-}
-
 function GiftSkeletonGrid() {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {Array.from({ length: 6 }).map((_, index) => (
         <Card key={index}>
+          <Skeleton className="aspect-[4/3] w-full rounded-none rounded-t-xl" />
           <CardHeader>
             <Skeleton className="h-5 w-2/3" />
             <Skeleton className="h-4 w-full" />
           </CardHeader>
           <CardContent className="space-y-3">
             <Skeleton className="h-4 w-1/2" />
-            <Skeleton className="h-8 w-28" />
           </CardContent>
           <CardFooter>
             <Skeleton className="h-8 w-full" />

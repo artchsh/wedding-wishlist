@@ -121,6 +121,23 @@ export async function fetchWishlist(signal?: AbortSignal) {
   return normalizeWishlist(await response.json());
 }
 
+export function parsePrice(value: string) {
+  const normalized = value.replace(/[^\d]/g, "");
+  const parsed = Number.parseInt(normalized, 10);
+
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export function formatKztPrice(value: string) {
+  const parsed = parsePrice(value);
+
+  if (parsed === null) {
+    return value;
+  }
+
+  return `${new Intl.NumberFormat("ru-KZ").format(parsed)} ₸`;
+}
+
 export async function replaceWishlist(items: WishlistItem[]) {
   const payload: WishlistDocument = {
     items,
