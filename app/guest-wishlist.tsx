@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ExternalLink, Loader2, X } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,12 +38,8 @@ export function GuestWishlist() {
   });
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
-  const [message, setMessage] = useState("");
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
-  const [messageType, setMessageType] = useState<"default" | "destructive">(
-    "default"
-  );
 
   const visibleItems = useMemo(
     () => filterItemsByPrice(items, minPrice, maxPrice),
@@ -69,8 +64,6 @@ export function GuestWishlist() {
       })
       .catch(() => {
         setItems(starterItems);
-        setMessage("Не удалось загрузить актуальный список. Показаны примеры.");
-        setMessageType("destructive");
       })
       .finally(() => setLoading(false));
 
@@ -87,20 +80,10 @@ export function GuestWishlist() {
     }
   }, [guestName]);
 
-  useEffect(() => {
-    if (!message) return;
-    const id = setTimeout(() => setMessage(""), 5000);
-    return () => clearTimeout(id);
-  }, [message]);
-
   async function reserveGift(itemId: string) {
     const name = guestName.trim();
 
-    if (!name) {
-      setMessage("Введите имя перед бронированием подарка.");
-      setMessageType("destructive");
-      return;
-    }
+    if (!name) return;
 
     const nextItems = items.map((item) =>
       item.id === itemId && !item.reservedBy
@@ -109,16 +92,12 @@ export function GuestWishlist() {
     );
 
     setSavingId(itemId);
-    setMessage("");
 
     try {
       await replaceWishlist(nextItems);
       setItems(nextItems);
-      setMessage("Подарок забронирован. Спасибо!");
-      setMessageType("default");
     } catch {
-      setMessage("Не удалось забронировать подарок. Попробуйте еще раз.");
-      setMessageType("destructive");
+      // silently ignore — card will retain its previous state
     } finally {
       setSavingId(null);
     }
@@ -127,11 +106,7 @@ export function GuestWishlist() {
   async function cancelReservation(itemId: string) {
     const name = guestName.trim();
 
-    if (!name) {
-      setMessage("Введите имя, чтобы снять свою бронь.");
-      setMessageType("destructive");
-      return;
-    }
+    if (!name) return;
 
     const nextItems = items.map((item) =>
       item.id === itemId && isReservedByCurrentGuest(item, name)
@@ -140,16 +115,12 @@ export function GuestWishlist() {
     );
 
     setSavingId(itemId);
-    setMessage("");
 
     try {
       await replaceWishlist(nextItems);
       setItems(nextItems);
-      setMessage("Бронь снята.");
-      setMessageType("default");
     } catch {
-      setMessage("Не удалось снять бронь. Попробуйте еще раз.");
-      setMessageType("destructive");
+      // silently ignore
     } finally {
       setSavingId(null);
     }
@@ -191,20 +162,6 @@ export function GuestWishlist() {
             </CardContent>
           </Card>
         </header>
-
-        {message ? (
-          <Alert variant={messageType} className="relative pr-10">
-            <AlertDescription>{message}</AlertDescription>
-            <button
-              type="button"
-              onClick={() => setMessage("")}
-              className="absolute top-3 right-3 text-muted-foreground hover:text-foreground"
-              aria-label="Закрыть"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </Alert>
-        ) : null}
 
         <section className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -274,17 +231,20 @@ export function GuestWishlist() {
                       </p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {group.items.map((item) => (
-                      <GiftCard
-                        key={item.id}
-                        item={item}
-                        guestName={guestName}
-                        saving={savingId === item.id}
-                        onReserve={() => reserveGift(item.id)}
-                        onCancelReservation={() => cancelReservation(item.id)}
-                      />
-                    ))}
+                  <div className="-mx-4 overflow-x-auto px-4 pb-3 sm:mx-0 sm:overflow-visible sm:px-0 sm:pb-0">
+                    <div className="flex snap-x snap-mandatory gap-4 sm:grid sm:snap-none sm:grid-cols-2 lg:grid-cols-3">
+                      {group.items.map((item) => (
+                        <GiftCard
+                          key={item.id}
+                          item={item}
+                          guestName={guestName}
+                          saving={savingId === item.id}
+                          onReserve={() => reserveGift(item.id)}
+                          onCancelReservation={() => cancelReservation(item.id)}
+                        />
+                      ))}
+                      <div className="w-1 shrink-0 sm:hidden" aria-hidden="true" />
+                    </div>
                   </div>
                 </section>
               ))}
@@ -324,13 +284,13 @@ function GiftCard({
 
   return (
     <Card
-      className={
+      className={`w-[82vw] shrink-0 snap-start sm:w-auto ${
         reservedByCurrentGuest
           ? "ring-2 ring-primary/40"
           : reservedByOther
           ? "opacity-60"
           : ""
-      }
+      }`}
     >
       {item.imageUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
