@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ExternalLink, Loader2, X } from "lucide-react";
+import { Check, Copy, ExternalLink, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,7 +23,6 @@ import {
   formatOriginalPrice,
   getPriceInKzt,
   isItemLocked,
-  parsePrice,
   parseReservedNames,
   replaceWishlist,
   sortCategories,
@@ -33,6 +32,7 @@ import {
 } from "./wishlist-data";
 
 const GUEST_NAME_STORAGE_KEY = "wedding-wishlist-guest-name";
+const KASPI_NUMBER = "+7 705 550 0168";
 
 export function GuestWishlist() {
   const [items, setItems] = useState<WishlistItem[]>([]);
@@ -45,24 +45,18 @@ export function GuestWishlist() {
   });
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
-  const [minPrice, setMinPrice] = useState("");
-  const [maxPrice, setMaxPrice] = useState("");
   const [usdToKztRate, setUsdToKztRate] = useState<number | null>(null);
   const [categoryOrder, setCategoryOrder] = useState<string[]>([]);
+  const [kaspiCopied, setKaspiCopied] = useState(false);
 
-  const visibleItems = useMemo(
-    () => filterItemsByPrice(items, minPrice, maxPrice, usdToKztRate),
-    [items, minPrice, maxPrice, usdToKztRate]
-  );
   const openCount = useMemo(
-    () => visibleItems.filter((item) => !isItemLocked(item)).length,
-    [visibleItems]
+    () => items.filter((item) => !isItemLocked(item)).length,
+    [items]
   );
   const categoryGroups = useMemo(
-    () => groupItemsByCategory(visibleItems, usdToKztRate, categoryOrder),
-    [visibleItems, usdToKztRate, categoryOrder]
+    () => groupItemsByCategory(items, usdToKztRate, categoryOrder),
+    [items, usdToKztRate, categoryOrder]
   );
-  const filtersActive = Boolean(minPrice || maxPrice);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -98,6 +92,16 @@ export function GuestWishlist() {
       window.localStorage.removeItem(GUEST_NAME_STORAGE_KEY);
     }
   }, [guestName]);
+
+  async function handleCopyKaspi() {
+    try {
+      await navigator.clipboard.writeText(KASPI_NUMBER);
+      setKaspiCopied(true);
+      setTimeout(() => setKaspiCopied(false), 2000);
+    } catch {
+      // clipboard access denied — nothing we can do, number is still visible to copy by hand
+    }
+  }
 
   async function reserveGift(itemId: string) {
     const name = guestName.trim();
@@ -197,61 +201,41 @@ export function GuestWishlist() {
           </Card>
         </header>
 
+        <Card>
+          <CardHeader>
+            <CardTitle>Деньги вместо подарка</CardTitle>
+            <CardDescription>
+              Не нашли подходящий подарок? Будем рады денежному подарку —
+              переводом на Kaspi или конвертом на свадьбе.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap items-center gap-3">
+            <span className="rounded-lg border bg-muted/50 px-3 py-2 font-mono text-sm">
+              {KASPI_NUMBER}
+            </span>
+            <Button type="button" variant="outline" size="sm" onClick={handleCopyKaspi}>
+              {kaspiCopied ? <Check /> : <Copy />}
+              {kaspiCopied ? "Скопировано" : "Скопировать номер"}
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Kaspi Перевод · или просто конверт 💌
+            </span>
+          </CardContent>
+        </Card>
+
         <section className="space-y-4">
           <div>
             <h2 className="font-heading text-2xl font-semibold tracking-tight">
               Подарки
             </h2>
             <p className="text-sm text-muted-foreground">
-              Свободно {openCount} из {visibleItems.length}
+              Свободно {openCount} из {items.length}
             </p>
           </div>
 
-          <Card>
-            <CardContent className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="min-price">Мин. цена</Label>
-                <Input
-                  id="min-price"
-                  inputMode="numeric"
-                  value={minPrice}
-                  onChange={(event) => setMinPrice(event.target.value)}
-                  placeholder="50 000"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="max-price">Макс. цена</Label>
-                <Input
-                  id="max-price"
-                  inputMode="numeric"
-                  value={maxPrice}
-                  onChange={(event) => setMaxPrice(event.target.value)}
-                  placeholder="150 000"
-                />
-              </div>
-              {filtersActive ? (
-                <div className="col-span-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setMinPrice("");
-                      setMaxPrice("");
-                    }}
-                    className="h-auto px-0 text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="mr-1 h-3 w-3" />
-                    Сбросить фильтры
-                  </Button>
-                </div>
-              ) : null}
-            </CardContent>
-          </Card>
-
           {loading ? (
             <GiftSkeletonGrid />
-          ) : visibleItems.length ? (
+          ) : items.length ? (
             <div className="space-y-8">
               {categoryGroups.map((group) => (
                 <section key={group.category} className="space-y-3">
@@ -286,9 +270,7 @@ export function GuestWishlist() {
           ) : (
             <Card>
               <CardContent className="py-10 text-center text-muted-foreground">
-                {filtersActive
-                  ? "По выбранным фильтрам подарков нет."
-                  : "Подарков пока нет."}
+                Подарков пока нет.
               </CardContent>
             </Card>
           )}
@@ -480,29 +462,6 @@ function sortByPriceWithReservedLast(
     const secondPrice = getPriceInKzt(second, usdToKztRate) ?? Infinity;
 
     return firstPrice - secondPrice;
-  });
-}
-
-function filterItemsByPrice(
-  items: WishlistItem[],
-  minPrice: string,
-  maxPrice: string,
-  usdToKztRate: number | null
-) {
-  const min = parsePrice(minPrice);
-  const max = parsePrice(maxPrice);
-
-  return items.filter((item) => {
-    const price = getPriceInKzt(item, usdToKztRate);
-
-    if (price === null) {
-      return min === null && max === null;
-    }
-
-    if (min !== null && price < min) return false;
-    if (max !== null && price > max) return false;
-
-    return true;
   });
 }
 
