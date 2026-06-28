@@ -421,7 +421,7 @@ export function AdminWishlist() {
                 {orderedCategories.map((category, index) => (
                   <div
                     key={category}
-                    className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm"
+                    className="flex items-center justify-between gap-2  border px-3 py-2 text-sm"
                   >
                     <span>{category}</span>
                     <div className="flex gap-1">
@@ -777,7 +777,7 @@ function GiftFormFields({
           <img
             src={value.imageUrl}
             alt="Предпросмотр"
-            className="mt-2 aspect-[4/3] w-full rounded-md object-cover"
+            className="mt-2 aspect-[4/3] w-full  object-cover"
             onError={(e) => {
               (e.target as HTMLImageElement).style.display = "none";
             }}
@@ -825,7 +825,7 @@ function GiftFormFields({
               priceCurrency: event.target.value as PriceCurrency,
             })
           }
-          className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="h-8 w-full  border border-input bg-transparent px-2.5 py-1 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           <option value="KZT">₸ KZT</option>
           <option value="USD">$ USD</option>
@@ -841,7 +841,7 @@ function GiftFormFields({
               deliveryEstimate: event.target.value as DeliveryEstimate,
             })
           }
-          className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="h-8 w-full  border border-input bg-transparent px-2.5 py-1 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           <option value="">Не указано</option>
           <option value="SHORT">{formatDeliveryEstimate("SHORT")}</option>
@@ -872,7 +872,7 @@ function GiftFormFields({
               unlimitedReservation: event.target.checked,
             })
           }
-          className="mt-0.5 h-4 w-4 rounded border-input"
+          className="mt-0.5 h-4 w-4 border-input"
         />
         <span>
           Разрешить несколько бронирований
@@ -904,7 +904,7 @@ function Field({
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg border p-3">
+    <div className=" border p-3">
       <p className="text-2xl font-semibold">{value}</p>
       <p className="text-xs text-muted-foreground">{label}</p>
     </div>
@@ -916,7 +916,7 @@ function InventorySkeleton() {
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
       {Array.from({ length: 4 }).map((_, index) => (
         <Card key={index}>
-          <Skeleton className="aspect-[4/3] w-full rounded-none rounded-t-xl" />
+          <Skeleton className="aspect-[4/3] w-full  " />
           <CardHeader>
             <Skeleton className="h-5 w-1/3" />
             <Skeleton className="h-4 w-2/3" />

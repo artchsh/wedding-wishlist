@@ -166,26 +166,25 @@ export function GuestWishlist() {
 
   return (
     <main className="min-h-screen bg-muted/30">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 sm:gap-8 px-4 py-8 sm:px-6 lg:px-8">
         <header className="grid gap-6 lg:grid-cols-[1fr_320px] lg:items-end">
           <div className="space-y-3">
-            <Badge variant="secondary">Свадьба Гея и Би</Badge>
+            {/* <Badge variant="secondary">Свадьба Гея и Би</Badge> */}
             <div className="space-y-2">
               <h1 className="font-heading text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
-                Выберите свадебный подарок
+                Ебать, свадьба!
               </h1>
               <p className="max-w-2xl text-muted-foreground">
-                Введите имя, выберите свободный подарок и забронируйте его для
-                пары.
+                Введите имя, выберите свободный подарок и бронируйте
               </p>
             </div>
           </div>
 
           <Card>
             <CardHeader>
-              <CardTitle>Ваше имя</CardTitle>
+              <CardTitle>Ваше слейное имя</CardTitle>
               <CardDescription>
-                Нужно для бронирования подарка.
+                (можно ненастоящее, но запомните его пж)
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -203,35 +202,31 @@ export function GuestWishlist() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Деньги вместо подарка</CardTitle>
+            <CardTitle>Cash instead of gift</CardTitle>
             <CardDescription>
-              Не нашли подходящий подарок? Будем рады денежному подарку —
-              переводом на Kaspi или конвертом на свадьбе.
+              Если вам лень думать, или не подарки не подходят под бюджет - можно просто денюжками <br></br> (переводом на Kaspi или конвертом на свадьбе.)
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-wrap items-center gap-3">
-            <span className="rounded-lg border bg-muted/50 px-3 py-2 font-mono text-sm">
+          <CardContent className="grid grid-cols-2 md:flex md:flex-wrap items-center gap-3">
+            <span className="h-10 flex items-center border bg-muted/50 px-3 py-2 font-mono text-sm">
               {KASPI_NUMBER}
             </span>
-            <Button type="button" variant="outline" size="sm" onClick={handleCopyKaspi}>
+            <Button type="button" variant="outline" className="h-10 flex items-center " size="sm" onClick={handleCopyKaspi}>
               {kaspiCopied ? <Check /> : <Copy />}
-              {kaspiCopied ? "Скопировано" : "Скопировать номер"}
+              {kaspiCopied ? "Скопировано" : "Скопировать"}
             </Button>
-            <span className="text-sm text-muted-foreground">
-              Kaspi Перевод · или просто конверт 💌
-            </span>
           </CardContent>
         </Card>
 
         <section className="space-y-4">
-          <div>
+          {/* <div>
             <h2 className="font-heading text-2xl font-semibold tracking-tight">
               Подарки
             </h2>
             <p className="text-sm text-muted-foreground">
               Свободно {openCount} из {items.length}
             </p>
-          </div>
+          </div> */}
 
           {loading ? (
             <GiftSkeletonGrid />
@@ -245,10 +240,10 @@ export function GuestWishlist() {
                     </h3>
                     <p className="text-sm text-muted-foreground">
                       {group.items.filter((item) => !isItemLocked(item)).length} из{" "}
-                      {group.items.length} свободно
+                      {group.items.length} без хозяина
                     </p>
                   </div>
-                  <div className="-mx-4 overflow-x-auto px-4 pb-3 sm:mx-0 sm:overflow-visible sm:px-0 sm:pb-0">
+                  <div className="-mx-4 overflow-x-auto no-scrollbar px-4 pb-3 sm:mx-0 sm:overflow-visible sm:px-0 sm:pb-0">
                     <div className="flex snap-x snap-mandatory gap-4 pt-2 sm:grid sm:snap-none sm:grid-cols-2 lg:grid-cols-3">
                       {group.items.map((item) => (
                         <GiftCard
@@ -270,7 +265,7 @@ export function GuestWishlist() {
           ) : (
             <Card>
               <CardContent className="py-10 text-center text-muted-foreground">
-                Подарков пока нет.
+                Бля, подарки украли...
               </CardContent>
             </Card>
           )}
@@ -330,21 +325,21 @@ function GiftCard({
         <div className="absolute right-3 top-3">
           {reservedByCurrentGuest ? (
             <Badge variant="default" className="shadow-sm">
-              Вы забронировали
+              Я твой хозяин
             </Badge>
           ) : (
             <Badge
               variant={locked ? "secondary" : "outline"}
               className="bg-background/90 shadow-sm backdrop-blur"
             >
-              {locked ? "Занято" : "Свободно"}
+              {locked ? "Занято" : "Свободная шлиша"}
             </Badge>
           )}
         </div>
       </div>
       <CardHeader>
         <CardTitle>{item.title}</CardTitle>
-        <CardDescription>{item.note || "Подарок из вишлиста"}</CardDescription>
+        <CardDescription>{item.note || "бля а какое описание тут может быть..."}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
         {item.deliveryEstimate ? (
@@ -359,7 +354,7 @@ function GiftCard({
         ) : null}
         {noName && !locked ? (
           <p className="text-xs text-muted-foreground">
-            Введите имя выше для бронирования
+            Попросила же, введи имя, по братски
           </p>
         ) : null}
         {otherReservers ? (
@@ -372,7 +367,7 @@ function GiftCard({
         {item.url ? (
           <Button asChild variant="outline" className="flex-1">
             <a href={item.url} target="_blank" rel="noreferrer">
-              Магазин
+              Шоп
               <ExternalLink data-icon="inline-end" />
             </a>
           </Button>
@@ -391,7 +386,7 @@ function GiftCard({
             className="flex-1"
           >
             {saving ? <Loader2 className="animate-spin" /> : null}
-            Снять бронь
+            Избавиться
           </Button>
         ) : null}
         {!locked && !reservedByCurrentGuest ? (
@@ -402,7 +397,7 @@ function GiftCard({
             className="flex-1"
           >
             {saving ? <Loader2 className="animate-spin" /> : null}
-            Забронировать
+            Стать хозяином
           </Button>
         ) : null}
       </CardFooter>
@@ -480,7 +475,7 @@ function GiftSkeletonGrid() {
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {Array.from({ length: 6 }).map((_, index) => (
         <Card key={index}>
-          <Skeleton className="aspect-[4/3] w-full rounded-none rounded-t-xl" />
+          <Skeleton className="aspect-4/3 w-full  " />
           <CardHeader>
             <Skeleton className="h-5 w-2/3" />
             <Skeleton className="h-4 w-full" />
