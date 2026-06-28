@@ -1,4 +1,5 @@
-import { fetchWishlist } from "@/app/wishlist-data";
+import { normalizeWishlist } from "@/app/wishlist-data";
+import { readWishlistRaw } from "@/app/api/wishlist/store";
 
 export async function POST() {
   const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
@@ -10,7 +11,16 @@ export async function POST() {
     );
   }
 
-  const document = await fetchWishlist();
+  const raw = await readWishlistRaw();
+
+  if (raw === null) {
+    return Response.json(
+      { ok: false, error: "Список подарков ещё не создан." },
+      { status: 404 }
+    );
+  }
+
+  const document = normalizeWishlist(JSON.parse(raw));
   const timestamp = new Date().toISOString();
   const json = JSON.stringify(document, null, 2);
 

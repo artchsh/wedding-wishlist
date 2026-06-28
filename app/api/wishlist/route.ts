@@ -1,6 +1,6 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { readWishlistRaw, WISHLIST_KEY } from "./store";
 
-const WISHLIST_KEY = "wishlist.json";
 const CACHE_KEY = new Request(
   "https://wedding-wishlist-internal.cache/wishlist.json"
 );
@@ -15,18 +15,17 @@ export async function GET() {
   const cached = await cache?.match(CACHE_KEY);
   if (cached) return cached;
 
-  const { env, ctx } = await getCloudflareContext({ async: true });
+  const { ctx } = await getCloudflareContext({ async: true });
 
-  const object = await env.WISHLIST_BUCKET.get(WISHLIST_KEY);
+  const body = await readWishlistRaw();
 
-  if (!object) {
+  if (body === null) {
     return Response.json(
       { ok: false, error: "Список подарков ещё не создан." },
       { status: 404 }
     );
   }
 
-  const body = await object.text();
   const response = new Response(body, {
     headers: {
       "Content-Type": "application/json",
