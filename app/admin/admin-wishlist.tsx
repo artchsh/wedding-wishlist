@@ -39,6 +39,7 @@ import {
   parseKaspiUrl,
   sortCategories,
   type DeliveryEstimate,
+  type HighlightType,
   type PriceCurrency,
   replaceWishlist,
   starterItems,
@@ -259,7 +260,7 @@ export function AdminWishlist() {
       deliveryEstimate: form.deliveryEstimate,
       reservedBy: "",
       unlimitedReservation: form.unlimitedReservation,
-      highlighted: false,
+      highlight: "",
       createdAt: new Date().toISOString(),
     };
 
@@ -275,10 +276,10 @@ export function AdminWishlist() {
     );
   }
 
-  async function toggleHighlight(itemId: string) {
+  async function setHighlight(itemId: string, type: HighlightType) {
     await persist(
       items.map((item) =>
-        item.id === itemId ? { ...item, highlighted: !item.highlighted } : item
+        item.id === itemId ? { ...item, highlight: type } : item
       ),
       itemId
     );
@@ -595,7 +596,7 @@ export function AdminWishlist() {
                   onConfirmDelete={() => setConfirmDeleteId(item.id)}
                   onCancelDelete={() => setConfirmDeleteId(null)}
                   onRelease={() => releaseGift(item.id)}
-                  onToggleHighlight={() => toggleHighlight(item.id)}
+                  onSetHighlight={(type) => setHighlight(item.id, type)}
                   onStartEdit={() => startEdit(item)}
                   onCancelEdit={cancelEdit}
                   onEditFormChange={setEditForm}
@@ -616,6 +617,28 @@ export function AdminWishlist() {
   );
 }
 
+const HIGHLIGHT_STYLES: Record<
+  HighlightType,
+  { ring: string; badge: string; label: string }
+> = {
+  "": { ring: "", badge: "", label: "" },
+  pair: {
+    ring: "ring-2 ring-amber-400 shadow-[0_0_14px_rgba(251,191,36,0.5)]",
+    badge: "bg-amber-400 text-amber-950",
+    label: "Выбор пары",
+  },
+  skyler: {
+    ring: "ring-2 ring-red-500 shadow-[0_0_14px_rgba(239,68,68,0.5)]",
+    badge: "bg-red-500 text-white",
+    label: "Выбор Скайлера",
+  },
+  anuar: {
+    ring: "ring-2 ring-blue-500 shadow-[0_0_14px_rgba(59,130,246,0.5)]",
+    badge: "bg-blue-500 text-white",
+    label: "Выбор Ануар",
+  },
+};
+
 function InventoryCard({
   item,
   busy,
@@ -627,7 +650,7 @@ function InventoryCard({
   onConfirmDelete,
   onCancelDelete,
   onRelease,
-  onToggleHighlight,
+  onSetHighlight,
   onStartEdit,
   onCancelEdit,
   onEditFormChange,
@@ -643,7 +666,7 @@ function InventoryCard({
   onConfirmDelete: () => void;
   onCancelDelete: () => void;
   onRelease: () => void;
-  onToggleHighlight: () => void;
+  onSetHighlight: (type: HighlightType) => void;
   onStartEdit: () => void;
   onCancelEdit: () => void;
   onEditFormChange: (next: GiftFormState) => void;
@@ -687,8 +710,10 @@ function InventoryCard({
     );
   }
 
+  const hl = HIGHLIGHT_STYLES[item.highlight];
+
   return (
-    <Card className={item.highlighted ? "ring-2 ring-amber-400/60" : ""}>
+    <Card className={hl.ring}>
       <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
         {item.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -710,11 +735,11 @@ function InventoryCard({
             {locked ? "Занято" : "Свободно"}
           </Badge>
         </div>
-        {item.highlighted ? (
+        {item.highlight ? (
           <div className="absolute left-3 top-3">
-            <Badge className="bg-amber-400 text-amber-950 shadow-sm">
-              <Star className="fill-amber-950" />
-              Выделено
+            <Badge className={`${hl.badge} shadow-sm`}>
+              <Star className="fill-current opacity-80" />
+              {hl.label}
             </Badge>
           </div>
         ) : null}
@@ -765,17 +790,17 @@ function InventoryCard({
             Снять бронь
           </Button>
         ) : null}
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={onToggleHighlight}
+        <select
+          value={item.highlight}
+          onChange={(e) => onSetHighlight(e.target.value as HighlightType)}
           disabled={busy}
-          className={item.highlighted ? "border-amber-400 text-amber-500" : ""}
+          className="h-8 border border-input bg-transparent px-2.5 py-1 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
         >
-          <Star className={item.highlighted ? "fill-amber-400 text-amber-400" : ""} />
-          {item.highlighted ? "Снять выделение" : "Выделить"}
-        </Button>
+          <option value="">Без выделения</option>
+          <option value="pair">⭐ Выбор пары</option>
+          <option value="skyler">🔴 Выбор Скайлера</option>
+          <option value="anuar">🔵 Выбор Ануар</option>
+        </select>
         <Button
           type="button"
           variant="outline"

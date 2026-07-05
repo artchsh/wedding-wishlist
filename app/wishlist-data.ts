@@ -2,6 +2,7 @@ export const EXCHANGE_RATE_URL = "https://api.exchangerate.fun/latest?base=USD";
 
 export type PriceCurrency = "KZT" | "USD";
 export type DeliveryEstimate = "" | "SHORT" | "LONG";
+export type HighlightType = "" | "pair" | "skyler" | "anuar";
 
 export type WishlistItem = {
   id: string;
@@ -15,7 +16,7 @@ export type WishlistItem = {
   deliveryEstimate: DeliveryEstimate;
   reservedBy: string;
   unlimitedReservation: boolean;
-  highlighted: boolean;
+  highlight: HighlightType;
   createdAt: string;
 };
 
@@ -38,7 +39,7 @@ export const starterItems: WishlistItem[] = [
     deliveryEstimate: "SHORT",
     reservedBy: "",
     unlimitedReservation: false,
-    highlighted: false,
+    highlight: "",
     createdAt: new Date().toISOString(),
   },
   {
@@ -53,7 +54,7 @@ export const starterItems: WishlistItem[] = [
     deliveryEstimate: "LONG",
     reservedBy: "",
     unlimitedReservation: false,
-    highlighted: false,
+    highlight: "",
     createdAt: new Date().toISOString(),
   },
   {
@@ -68,7 +69,7 @@ export const starterItems: WishlistItem[] = [
     deliveryEstimate: "SHORT",
     reservedBy: "",
     unlimitedReservation: false,
-    highlighted: false,
+    highlight: "",
     createdAt: new Date().toISOString(),
   },
 ];
@@ -130,13 +131,19 @@ function normalizeItem(item: unknown): WishlistItem | null {
       typeof record.unlimitedReservation === "boolean"
         ? record.unlimitedReservation
         : false,
-    highlighted:
-      typeof record.highlighted === "boolean" ? record.highlighted : false,
+    highlight: normalizeHighlight(record.highlight, record.highlighted),
     createdAt:
       typeof record.createdAt === "string"
         ? record.createdAt
         : new Date().toISOString(),
   };
+}
+
+function normalizeHighlight(value: unknown, legacy: unknown): HighlightType {
+  if (value === "pair" || value === "skyler" || value === "anuar") return value;
+  // migrate old highlighted: true → "pair"
+  if (legacy === true) return "pair";
+  return "";
 }
 
 function normalizeDeliveryEstimate(value: unknown): DeliveryEstimate {

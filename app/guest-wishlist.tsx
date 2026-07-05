@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Check, Copy, ExternalLink, Loader2, Star } from "lucide-react";
+import type { HighlightType } from "./wishlist-data";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -344,8 +345,7 @@ export function GuestWishlist() {
                                 guestName={guestName}
                                 saving={savingId === item.id}
                                 usdToKztRate={usdToKztRate}
-                                highlighted={recentlyMovedId === item.id}
-                                pinned={item.highlighted}
+                                flashed={recentlyMovedId === item.id}
                                 onReserve={() => reserveGift(item.id)}
                                 onCancelReservation={() =>
                                   cancelReservation(item.id)
@@ -380,13 +380,34 @@ export function GuestWishlist() {
   );
 }
 
+const GUEST_HIGHLIGHT: Record<
+  HighlightType,
+  { ring: string; badge: string; label: string } | null
+> = {
+  "": null,
+  pair: {
+    ring: "ring-2 ring-amber-400 shadow-[0_0_18px_4px_rgba(251,191,36,0.55),0_0_36px_rgba(251,191,36,0.25)]",
+    badge: "bg-amber-400 text-amber-950",
+    label: "Выбор пары",
+  },
+  skyler: {
+    ring: "ring-2 ring-red-500 shadow-[0_0_18px_4px_rgba(239,68,68,0.55),0_0_36px_rgba(239,68,68,0.25)]",
+    badge: "bg-red-500 text-white",
+    label: "Выбор Скайлера",
+  },
+  anuar: {
+    ring: "ring-2 ring-blue-500 shadow-[0_0_18px_4px_rgba(59,130,246,0.55),0_0_36px_rgba(59,130,246,0.25)]",
+    badge: "bg-blue-500 text-white",
+    label: "Выбор Ануар",
+  },
+};
+
 function GiftCard({
   item,
   guestName,
   saving,
   usdToKztRate,
-  highlighted,
-  pinned,
+  flashed,
   onReserve,
   onCancelReservation,
 }: {
@@ -394,8 +415,7 @@ function GiftCard({
   guestName: string;
   saving: boolean;
   usdToKztRate: number | null;
-  highlighted: boolean;
-  pinned: boolean;
+  flashed: boolean;
   onReserve: () => void;
   onCancelReservation: () => void;
 }) {
@@ -407,16 +427,19 @@ function GiftCard({
       ? item.reservedBy
       : "";
   const noName = !guestName.trim();
+  const hl = GUEST_HIGHLIGHT[item.highlight];
+
+  const ringClass = flashed
+    ? "ring-2 ring-secondary shadow-[0_0_28px_var(--secondary)]"
+    : hl
+      ? hl.ring
+      : reservedByCurrentGuest
+        ? "ring-2 ring-primary/40"
+        : "";
 
   return (
     <Card
-      className={`pt-0 transition-shadow duration-700 ${
-        reservedByCurrentGuest
-          ? "ring-2 ring-primary/40"
-          : reservedByOther
-            ? "opacity-60"
-            : ""
-      } ${highlighted ? "ring-2 ring-secondary shadow-[0_0_28px_var(--secondary)]" : pinned ? "ring-2 ring-amber-400/60 shadow-[0_0_20px_rgba(251,191,36,0.25)]" : ""}`}
+      className={`pt-0 transition-shadow duration-700 ${reservedByOther ? "opacity-60" : ""} ${ringClass}`}
     >
       <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
         {item.imageUrl ? (
@@ -431,11 +454,11 @@ function GiftCard({
             Изображение не добавлено
           </div>
         )}
-        {pinned ? (
+        {hl ? (
           <div className="absolute left-3 top-3">
-            <Badge className="bg-amber-400 text-amber-950 shadow-sm backdrop-blur">
-              <Star className="fill-amber-950" />
-              Выбор пары
+            <Badge className={`${hl.badge} shadow-sm backdrop-blur`}>
+              <Star className="fill-current opacity-80" />
+              {hl.label}
             </Badge>
           </div>
         ) : null}
@@ -563,6 +586,13 @@ function sortByPriceWithReservedLast(
   usdToKztRate: number | null
 ) {
   return [...items].sort((first, second) => {
+    const firstHighlighted = Boolean(first.highlight);
+    const secondHighlighted = Boolean(second.highlight);
+
+    if (firstHighlighted !== secondHighlighted) {
+      return firstHighlighted ? -1 : 1;
+    }
+
     const firstLocked = isItemLocked(first);
     const secondLocked = isItemLocked(second);
 
