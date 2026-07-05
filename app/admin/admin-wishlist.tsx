@@ -9,6 +9,7 @@ import {
   Pencil,
   RefreshCw,
   Send,
+  Star,
   Trash2,
   Wand2,
   X,
@@ -258,6 +259,7 @@ export function AdminWishlist() {
       deliveryEstimate: form.deliveryEstimate,
       reservedBy: "",
       unlimitedReservation: form.unlimitedReservation,
+      highlighted: false,
       createdAt: new Date().toISOString(),
     };
 
@@ -269,6 +271,15 @@ export function AdminWishlist() {
     setConfirmDeleteId(null);
     await persist(
       items.filter((item) => item.id !== itemId),
+      itemId
+    );
+  }
+
+  async function toggleHighlight(itemId: string) {
+    await persist(
+      items.map((item) =>
+        item.id === itemId ? { ...item, highlighted: !item.highlighted } : item
+      ),
       itemId
     );
   }
@@ -584,6 +595,7 @@ export function AdminWishlist() {
                   onConfirmDelete={() => setConfirmDeleteId(item.id)}
                   onCancelDelete={() => setConfirmDeleteId(null)}
                   onRelease={() => releaseGift(item.id)}
+                  onToggleHighlight={() => toggleHighlight(item.id)}
                   onStartEdit={() => startEdit(item)}
                   onCancelEdit={cancelEdit}
                   onEditFormChange={setEditForm}
@@ -615,6 +627,7 @@ function InventoryCard({
   onConfirmDelete,
   onCancelDelete,
   onRelease,
+  onToggleHighlight,
   onStartEdit,
   onCancelEdit,
   onEditFormChange,
@@ -630,6 +643,7 @@ function InventoryCard({
   onConfirmDelete: () => void;
   onCancelDelete: () => void;
   onRelease: () => void;
+  onToggleHighlight: () => void;
   onStartEdit: () => void;
   onCancelEdit: () => void;
   onEditFormChange: (next: GiftFormState) => void;
@@ -674,7 +688,7 @@ function InventoryCard({
   }
 
   return (
-    <Card>
+    <Card className={item.highlighted ? "ring-2 ring-amber-400/60" : ""}>
       <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
         {item.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -696,6 +710,14 @@ function InventoryCard({
             {locked ? "Занято" : "Свободно"}
           </Badge>
         </div>
+        {item.highlighted ? (
+          <div className="absolute left-3 top-3">
+            <Badge className="bg-amber-400 text-amber-950 shadow-sm">
+              <Star className="fill-amber-950" />
+              Выделено
+            </Badge>
+          </div>
+        ) : null}
       </div>
       <CardHeader>
         <CardTitle>{item.title}</CardTitle>
@@ -743,6 +765,17 @@ function InventoryCard({
             Снять бронь
           </Button>
         ) : null}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onToggleHighlight}
+          disabled={busy}
+          className={item.highlighted ? "border-amber-400 text-amber-500" : ""}
+        >
+          <Star className={item.highlighted ? "fill-amber-400 text-amber-400" : ""} />
+          {item.highlighted ? "Снять выделение" : "Выделить"}
+        </Button>
         <Button
           type="button"
           variant="outline"

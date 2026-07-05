@@ -15,6 +15,7 @@ export type WishlistItem = {
   deliveryEstimate: DeliveryEstimate;
   reservedBy: string;
   unlimitedReservation: boolean;
+  highlighted: boolean;
   createdAt: string;
 };
 
@@ -37,6 +38,7 @@ export const starterItems: WishlistItem[] = [
     deliveryEstimate: "SHORT",
     reservedBy: "",
     unlimitedReservation: false,
+    highlighted: false,
     createdAt: new Date().toISOString(),
   },
   {
@@ -51,6 +53,7 @@ export const starterItems: WishlistItem[] = [
     deliveryEstimate: "LONG",
     reservedBy: "",
     unlimitedReservation: false,
+    highlighted: false,
     createdAt: new Date().toISOString(),
   },
   {
@@ -65,6 +68,7 @@ export const starterItems: WishlistItem[] = [
     deliveryEstimate: "SHORT",
     reservedBy: "",
     unlimitedReservation: false,
+    highlighted: false,
     createdAt: new Date().toISOString(),
   },
 ];
@@ -126,6 +130,8 @@ function normalizeItem(item: unknown): WishlistItem | null {
       typeof record.unlimitedReservation === "boolean"
         ? record.unlimitedReservation
         : false,
+    highlighted:
+      typeof record.highlighted === "boolean" ? record.highlighted : false,
     createdAt:
       typeof record.createdAt === "string"
         ? record.createdAt

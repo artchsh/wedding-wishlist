@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Check, Copy, ExternalLink, Loader2 } from "lucide-react";
+import { Check, Copy, ExternalLink, Loader2, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -345,6 +345,7 @@ export function GuestWishlist() {
                                 saving={savingId === item.id}
                                 usdToKztRate={usdToKztRate}
                                 highlighted={recentlyMovedId === item.id}
+                                pinned={item.highlighted}
                                 onReserve={() => reserveGift(item.id)}
                                 onCancelReservation={() =>
                                   cancelReservation(item.id)
@@ -385,6 +386,7 @@ function GiftCard({
   saving,
   usdToKztRate,
   highlighted,
+  pinned,
   onReserve,
   onCancelReservation,
 }: {
@@ -393,6 +395,7 @@ function GiftCard({
   saving: boolean;
   usdToKztRate: number | null;
   highlighted: boolean;
+  pinned: boolean;
   onReserve: () => void;
   onCancelReservation: () => void;
 }) {
@@ -413,7 +416,7 @@ function GiftCard({
           : reservedByOther
             ? "opacity-60"
             : ""
-      } ${highlighted ? "ring-2 ring-secondary shadow-[0_0_28px_var(--secondary)]" : ""}`}
+      } ${highlighted ? "ring-2 ring-secondary shadow-[0_0_28px_var(--secondary)]" : pinned ? "ring-2 ring-amber-400/60 shadow-[0_0_20px_rgba(251,191,36,0.25)]" : ""}`}
     >
       <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
         {item.imageUrl ? (
@@ -428,6 +431,14 @@ function GiftCard({
             Изображение не добавлено
           </div>
         )}
+        {pinned ? (
+          <div className="absolute left-3 top-3">
+            <Badge className="bg-amber-400 text-amber-950 shadow-sm backdrop-blur">
+              <Star className="fill-amber-950" />
+              Выбор пары
+            </Badge>
+          </div>
+        ) : null}
         <div className="absolute right-3 top-3">
           {reservedByCurrentGuest ? (
             <Badge variant="default" className="shadow-sm">
