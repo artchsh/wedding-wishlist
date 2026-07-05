@@ -28,6 +28,13 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  SelectContent,
+  SelectItem,
+  SelectRoot,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
@@ -790,17 +797,30 @@ function InventoryCard({
             Снять бронь
           </Button>
         ) : null}
-        <select
+        <SelectRoot
           value={item.highlight}
-          onChange={(e) => onSetHighlight(e.target.value as HighlightType)}
+          onValueChange={(v) => onSetHighlight(v as HighlightType)}
           disabled={busy}
-          className="h-8 border border-input bg-transparent px-2.5 py-1 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
         >
-          <option value="">Без выделения</option>
-          <option value="pair">⭐ Выбор пары</option>
-          <option value="skyler">🔴 Выбор Скайлера</option>
-          <option value="anuar">🔵 Выбор Ануар</option>
-        </select>
+          <SelectTrigger size="sm" className="flex-1">
+            <SelectValue placeholder="Без выделения" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">Без выделения</SelectItem>
+            <SelectItem value="pair">
+              <span className="inline-block size-2 rounded-full bg-amber-400" />
+              Выбор пары
+            </SelectItem>
+            <SelectItem value="skyler">
+              <span className="inline-block size-2 rounded-full bg-red-500" />
+              Выбор Скайлера
+            </SelectItem>
+            <SelectItem value="anuar">
+              <span className="inline-block size-2 rounded-full bg-blue-500" />
+              Выбор Ануар
+            </SelectItem>
+          </SelectContent>
+        </SelectRoot>
         <Button
           type="button"
           variant="outline"
