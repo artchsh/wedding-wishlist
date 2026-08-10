@@ -12,18 +12,24 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  countGroupPeople,
   fetchRsvps,
   formatRsvpTimestamp,
   groupRsvpsByName,
   pluralizeRu,
+  RESOLUTION_NOTE_MAX,
+  submitRsvpResolution,
   summarizeRsvps,
   triggerRsvpBackup,
   type RsvpNameGroup,
   type RsvpRecord,
   type RsvpResolution,
+  type RsvpResolutionInput,
 } from "../rsvp-data";
 
 export function AdminRsvp() {
@@ -33,6 +39,8 @@ export function AdminRsvp() {
   const [error, setError] = useState("");
   const [backupSending, setBackupSending] = useState(false);
   const [backupStatus, setBackupStatus] = useState("");
+  const [resolvingKey, setResolvingKey] = useState<string | null>(null);
+  const [resolveError, setResolveError] = useState("");
 
   const groups = useMemo(
     () => groupRsvpsByName(records, resolutions),
@@ -68,6 +76,27 @@ export function AdminRsvp() {
       result.ok ? "Бэкап RSVP отправлен в Discord." : `Ошибка: ${result.error}`
     );
     setBackupSending(false);
+  }
+
+  /** Resolves to false on failure so the row can keep its controls open. */
+  async function handleResolve(input: RsvpResolutionInput) {
+    setResolvingKey(input.nameKey);
+    setResolveError("");
+
+    const result = await submitRsvpResolution(input);
+
+    if (!result.ok || !result.resolution) {
+      setResolveError(result.error ?? "Не удалось сохранить решение.");
+      setResolvingKey(null);
+      return false;
+    }
+
+    const saved = result.resolution;
+    setResolutions((current) => [...current, saved]);
+    setResolvingKey(null);
+    void triggerRsvpBackup();
+
+    return true;
   }
 
   return (
@@ -124,12 +153,9 @@ export function AdminRsvp() {
             {records.length}{" "}
             {pluralizeRu(records.length, ["ответ", "ответа", "ответов"])} всего
             {summary.needsReview
-              ? ` · ${summary.needsReview} ${pluralizeRu(summary.needsReview, [
-                  "имя",
-                  "имени",
-                  "имён",
-                ])} с ответами с разных устройств — проверьте вручную`
+              ? ` · ${summary.needsReview} нужно разобрать`
               : ""}
+            {summary.stale ? ` · ${summary.stale} с новыми ответами` : ""}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -137,7 +163,13 @@ export function AdminRsvp() {
             <RsvpSkeleton />
           ) : groups.length ? (
             groups.map((group) => (
-              <RsvpGroupRow key={group.key} group={group} />
+              <RsvpGroupRow
+                key={group.key}
+                group={group}
+                busy={resolvingKey === group.key}
+                error={resolvingKey === group.key ? resolveError : ""}
+                onResolve={handleResolve}
+              />
             ))
           ) : (
             <p className="py-6 text-center text-muted-foreground">
@@ -150,23 +182,73 @@ export function AdminRsvp() {
   );
 }
 
-function RsvpGroupRow({ group }: { group: RsvpNameGroup }) {
-  const flagged = group.needsReview;
+function RsvpGroupRow({
+  group,
+  busy,
+  error,
+  onResolve,
+}: {
+  group: RsvpNameGroup;
+  busy: boolean;
+  error: string;
+  onResolve: (input: RsvpResolutionInput) => Promise<boolean>;
+}) {
+  const [mode, setMode] = useState<"none" | "single" | "split">("none");
+  const [note, setNote] = useState("");
+  const [attending, setAttending] = useState(group.latest.attending);
+  const [coming, setComing] = useState(
+    () => countGroupPeople({ ...group, resolution: null }).coming
+  );
+  const [notComing, setNotComing] = useState(
+    () => countGroupPeople({ ...group, resolution: null }).notComing
+  );
+
+  const counts = countGroupPeople(group);
+  const unresolved = group.needsReview && !group.resolution;
+  const showHistory = group.needsReview || group.answerChanges > 0;
+  const border = group.resolutionStale
+    ? "border-amber-500/60"
+    : unresolved
+      ? "border-destructive/60 bg-destructive/5"
+      : "";
+
+  // Only closes on success — a failed write keeps the entered values on screen.
+  async function save(kind: "single" | "split") {
+    const saved = await onResolve({
+      nameKey: group.key,
+      kind,
+      attending: kind === "single" ? attending : false,
+      coming: kind === "split" ? coming : 0,
+      notComing: kind === "split" ? notComing : 0,
+      note,
+    });
+
+    if (saved) {
+      setMode("none");
+    }
+  }
 
   return (
-    <div className={`space-y-2 border p-3 ${flagged ? "border-amber-500/60" : ""}`}>
+    <div className={`space-y-2 border p-3 ${border}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-semibold">{group.name}</span>
-          <Badge variant={group.latest.attending ? "default" : "secondary"}>
-            {group.latest.attending ? "Придёт" : "Не придёт"}
+          <Badge variant={counts.coming ? "default" : "secondary"}>
+            {counts.coming} придут / {counts.notComing} нет
           </Badge>
-          {flagged ? (
-            <Badge variant="outline">
+          {unresolved ? (
+            <Badge variant="destructive">
               <AlertTriangle />
               Ответы с {group.submitters.length} устройств
             </Badge>
-          ) : group.answerChanges > 0 ? (
+          ) : null}
+          {group.resolutionStale ? (
+            <Badge variant="outline">
+              <AlertTriangle />
+              После решения пришли новые ответы
+            </Badge>
+          ) : null}
+          {group.answerChanges > 0 && !group.needsReview ? (
             <span className="text-xs text-muted-foreground">
               менял(а) ответ {group.answerChanges}{" "}
               {pluralizeRu(group.answerChanges, ["раз", "раза", "раз"])}
@@ -178,23 +260,172 @@ function RsvpGroupRow({ group }: { group: RsvpNameGroup }) {
         </span>
       </div>
 
-      {flagged || group.answerChanges > 0 ? (
+      {group.resolution ? (
+        <p className="text-xs text-muted-foreground">
+          Решено:{" "}
+          {group.resolution.kind === "single"
+            ? `один человек, ${group.resolution.attending ? "придёт" : "не придёт"}`
+            : `${group.resolution.coming} придут, ${group.resolution.notComing} нет`}
+          {group.resolution.note ? ` — ${group.resolution.note}` : ""}
+        </p>
+      ) : null}
+
+      {showHistory ? (
         <>
           <Separator />
-          <ul className="space-y-1 text-xs text-muted-foreground">
-            {group.records.map((record) => (
-              <li key={record.id} className="flex justify-between gap-3">
-                <span>
-                  {record.name} — {record.attending ? "придёт" : "не придёт"}
-                </span>
-                <span>{formatRsvpTimestamp(record.createdAt)}</span>
-              </li>
-            ))}
-          </ul>
-          <p className="text-xs text-muted-foreground">
-            Может быть один человек, который передумал, или два разных гостя с
-            одинаковым именем — разберитесь по своему списку гостей.
-          </p>
+          {group.submitters.map((submitter, index) => (
+            <div key={submitter.submitterId || "legacy"} className="space-y-1">
+              <p className="text-xs font-medium">
+                {submitter.submitterId
+                  ? `Устройство ${index + 1}`
+                  : "Старые ответы (без устройства)"}
+              </p>
+              <ul className="space-y-1 text-xs text-muted-foreground">
+                {submitter.records.map((record) => (
+                  <li key={record.id} className="flex justify-between gap-3">
+                    <span>{record.attending ? "придёт" : "не придёт"}</span>
+                    <span>{formatRsvpTimestamp(record.createdAt)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </>
+      ) : null}
+
+      {group.needsReview ? (
+        <>
+          {mode === "none" ? (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={busy}
+                onClick={() => setMode("single")}
+              >
+                Это один человек
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={busy}
+                onClick={() => setMode("split")}
+              >
+                Разные люди
+              </Button>
+            </div>
+          ) : null}
+
+          {mode === "single" ? (
+            <div className="space-y-2 border p-2">
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={attending ? "default" : "outline"}
+                  onClick={() => setAttending(true)}
+                >
+                  Придёт
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={attending ? "outline" : "default"}
+                  onClick={() => setAttending(false)}
+                >
+                  Не придёт
+                </Button>
+              </div>
+              <Input
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+                placeholder="Заметка (необязательно)"
+                maxLength={RESOLUTION_NOTE_MAX}
+              />
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => void save("single")}
+                >
+                  {busy ? <Loader2 className="animate-spin" /> : null}
+                  Сохранить
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setMode("none")}
+                >
+                  Отмена
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          {mode === "split" ? (
+            <div className="space-y-2 border p-2">
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <Label htmlFor={`coming-${group.key}`}>Придут</Label>
+                <Input
+                  id={`coming-${group.key}`}
+                  type="number"
+                  min={0}
+                  className="w-20"
+                  value={coming}
+                  onChange={(event) =>
+                    setComing(Math.max(0, Number(event.target.value) || 0))
+                  }
+                />
+                <Label htmlFor={`not-coming-${group.key}`}>Не придут</Label>
+                <Input
+                  id={`not-coming-${group.key}`}
+                  type="number"
+                  min={0}
+                  className="w-20"
+                  value={notComing}
+                  onChange={(event) =>
+                    setNotComing(Math.max(0, Number(event.target.value) || 0))
+                  }
+                />
+              </div>
+              <Input
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+                placeholder="Кто есть кто (необязательно)"
+                maxLength={RESOLUTION_NOTE_MAX}
+              />
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={busy || coming + notComing < 2}
+                  onClick={() => void save("split")}
+                >
+                  {busy ? <Loader2 className="animate-spin" /> : null}
+                  Сохранить
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setMode("none")}
+                >
+                  Отмена
+                </Button>
+              </div>
+              {coming + notComing < 2 ? (
+                <p className="text-xs text-muted-foreground">
+                  Разных людей должно быть хотя бы двое.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {error ? <p className="text-xs text-destructive">{error}</p> : null}
         </>
       ) : null}
     </div>
