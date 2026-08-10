@@ -49,6 +49,35 @@ a stale headcount would be worse than an extra 200ms. It responds with `Cache-Co
 The same read-modify-write race as the wishlist applies (two submissions landing in the same
 window can drop one). Same accepted tradeoff, same reasoning — see [`storage.md`](storage.md).
 
+## Submitter identity
+
+Every browser generates a UUID on first submission and keeps it in `localStorage` under
+`wedding-rsvp-submitter`; it rides along on each record as `submitterId`. It identifies a browser,
+not a person — no name, no fingerprint.
+
+This is what lets the admin tell "one guest pressed the button seven times" from "two guests share a
+name". `groupRsvpsByName()` buckets a name's records by `submitterId`; one bucket is one presumed
+person contributing its own latest answer, and only two or more buckets raise a flag. Repeat answers
+from one browser are never a warning — the row notes how many times the answer *flipped*
+(`answerChanges`), and identical repeats count as zero.
+
+Two browsers are flagged **even when they agree**: the answer is unambiguous but the headcount isn't.
+
+## Resolutions
+
+`rsvps.json` carries a second append-only array. A resolution records the couple's decision about one
+name — `kind: "single"` (one person, this is their answer) or `kind: "split"` (this many coming, this
+many not) — plus a free-text note. Written via `POST /api/rsvp/resolve`; never edited, never deleted,
+newest per `nameKey` wins.
+
+A resolution decides its name's contribution to the headcount outright. Without one, each browser
+counts as one person.
+
+`recordCount` stores how many records the group held when the decision was made. More records than
+that means the resolution is **stale** — the group is flagged for another look, but the resolution
+*keeps applying to the count*. An explicit human decision shouldn't silently revert to a guess
+because someone tapped a button.
+
 ## Discord backup
 
 Every successful submit fires `triggerRsvpBackup()` → `POST /api/backup/rsvp`, which reads

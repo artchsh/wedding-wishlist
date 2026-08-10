@@ -27,6 +27,11 @@ by `appendRsvp()` in `app/api/rsvp/store.ts`. Never rewrite or delete an existin
 who changes their mind gets a second record, and the headcount uses the latest per name. See
 `docs/rsvp.md`.
 
+The same rule covers resolutions: the couple's decisions about ambiguous names live in
+`document.resolutions`, are appended by `appendResolution()`, and are never edited — re-deciding
+appends another and the newest wins. Any new write path must preserve *both* arrays; `appendRsvp()`
+once rebuilt the document from `records` alone, which would have silently dropped every resolution.
+
 ## RSVP identity is not the wishlist nickname
 
 `/` asks for a throwaway nickname; `/rsvp` asks for the guest's real name in "first name + surname

@@ -95,3 +95,14 @@ A gift with `unlimitedReservation: true` can have a non-empty `reservedBy` (comm
 names) while still being open for more reservations. `isItemLocked(item)` correctly returns
 `Boolean(item.reservedBy) && !item.unlimitedReservation`. Checking `reservedBy` truthiness alone
 will incorrectly treat unlimited-reservation gifts as taken.
+
+## Records written before `submitterId` all share one bucket
+
+`RsvpRecord.submitterId` was added after the RSVP feature shipped, so earlier records normalize to
+`""`. Grouping treats every `""` record for a name as **one** browser, not as N unknown ones.
+
+That's deliberate: the alternative flags every historical name as ambiguous, and the duplicates
+actually in the log were one person pressing the button repeatedly. The cost is that if two real
+guests both answered before the id existed, they count as one person until one of them answers again
+from a browser that has an id. If a headcount ever looks one short for an old name, this is why —
+it isn't a grouping bug.
