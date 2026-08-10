@@ -536,13 +536,16 @@ export type SubmitResolutionResult = {
 };
 
 export async function submitRsvpResolution(
-  input: RsvpResolutionInput
+  input: RsvpResolutionInput,
+  /** The group's record count as last fetched by the caller — the merge base
+   *  the server clamps against. See app/api/rsvp/resolve/route.ts. */
+  observedRecordCount: number
 ): Promise<SubmitResolutionResult> {
   try {
     const response = await fetch("/api/rsvp/resolve", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
+      body: JSON.stringify({ ...input, observedRecordCount }),
     });
 
     const data = (await response.json().catch(() => null)) as

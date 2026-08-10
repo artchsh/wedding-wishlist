@@ -32,6 +32,19 @@ import {
   type RsvpResolutionInput,
 } from "../rsvp-data";
 
+/**
+ * "придёт"/"придут" for a headcount. pluralizeRu(0, ...) would return the
+ * "many" form ("0 придут"), but Russian takes the singular with zero
+ * ("0 придёт") — special-cased here rather than in pluralizeRu itself,
+ * since the genitive-plural "many" form is correct for zero with ordinary
+ * nouns (e.g. "0 ответов").
+ */
+function attendingVerb(count: number) {
+  return count === 0
+    ? "придёт"
+    : pluralizeRu(count, ["придёт", "придут", "придут"]);
+}
+
 export function AdminRsvp() {
   const [records, setRecords] = useState<RsvpRecord[]>([]);
   const [resolutions, setResolutions] = useState<RsvpResolution[]>([]);
@@ -85,12 +98,15 @@ export function AdminRsvp() {
    * outcome; `resolveErrorKey` tracks which row's error to keep showing
    * once that spinner clears, so a failed save doesn't lose its message.
    */
-  async function handleResolve(input: RsvpResolutionInput) {
+  async function handleResolve(
+    input: RsvpResolutionInput,
+    observedRecordCount: number
+  ) {
     setResolvingKey(input.nameKey);
     setResolveErrorKey(null);
     setResolveError("");
 
-    const result = await submitRsvpResolution(input);
+    const result = await submitRsvpResolution(input, observedRecordCount);
 
     if (!result.ok || !result.resolution) {
       setResolveError(result.error ?? "Не удалось сохранить решение.");
@@ -99,12 +115,22 @@ export function AdminRsvp() {
       return false;
     }
 
-    const saved = result.resolution;
-    setResolutions((current) => [...current, saved]);
+    // Refetch rather than append the returned resolution locally: the
+    // record list on screen is still as of page load, and a concurrent
+    // guest submission could have raced appendResolution() and silently
+    // lost this write. Reloading surfaces both.
+    await loadRsvps();
     setResolvingKey(null);
     void triggerRsvpBackup();
 
     return true;
+  }
+
+  function clearResolveError(key: string) {
+    if (resolveErrorKey === key) {
+      setResolveErrorKey(null);
+      setResolveError("");
+    }
   }
 
   return (
@@ -115,7 +141,8 @@ export function AdminRsvp() {
             RSVP
           </h2>
           <p className="text-muted-foreground">
-            Кто придёт. Считается последний ответ на каждое имя.
+            Кто придёт. Считается по одному человеку с каждого устройства,
+            либо ваше решение по имени.
           </p>
         </div>
         <div className="flex gap-2">
@@ -153,10 +180,8 @@ export function AdminRsvp() {
       <Card>
         <CardHeader>
           <CardTitle>
-            {summary.coming}{" "}
-            {pluralizeRu(summary.coming, ["придёт", "придут", "придут"])} /{" "}
-            {summary.notComing} не{" "}
-            {pluralizeRu(summary.notComing, ["придёт", "придут", "придут"])}
+            {summary.coming} {attendingVerb(summary.coming)} /{" "}
+            {summary.notComing} не {attendingVerb(summary.notComing)}
           </CardTitle>
           <CardDescription>
             {summary.names}{" "}
@@ -180,6 +205,7 @@ export function AdminRsvp() {
                 busy={resolvingKey === group.key}
                 error={resolveErrorKey === group.key ? resolveError : ""}
                 onResolve={handleResolve}
+                onOpenForm={() => clearResolveError(group.key)}
               />
             ))
           ) : (
@@ -198,11 +224,16 @@ function RsvpGroupRow({
   busy,
   error,
   onResolve,
+  onOpenForm,
 }: {
   group: RsvpNameGroup;
   busy: boolean;
   error: string;
-  onResolve: (input: RsvpResolutionInput) => Promise<boolean>;
+  onResolve: (
+    input: RsvpResolutionInput,
+    observedRecordCount: number
+  ) => Promise<boolean>;
+  onOpenForm: () => void;
 }) {
   const [mode, setMode] = useState<"none" | "single" | "split">("none");
   const [note, setNote] = useState("");
@@ -224,12 +255,14 @@ function RsvpGroupRow({
       : "";
 
   function openSingle() {
+    onOpenForm();
     setAttending(group.latest.attending);
     setNote("");
     setMode("single");
   }
 
   function openSplit() {
+    onOpenForm();
     const fresh = countGroupPeople({ ...group, resolution: null });
     setComing(fresh.coming);
     setNotComing(fresh.notComing);
@@ -239,14 +272,17 @@ function RsvpGroupRow({
 
   // Only closes on success — a failed write keeps the entered values on screen.
   async function save(kind: "single" | "split") {
-    const saved = await onResolve({
-      nameKey: group.key,
-      kind,
-      attending: kind === "single" ? attending : false,
-      coming: kind === "split" ? coming : 0,
-      notComing: kind === "split" ? notComing : 0,
-      note,
-    });
+    const saved = await onResolve(
+      {
+        nameKey: group.key,
+        kind,
+        attending: kind === "single" ? attending : false,
+        coming: kind === "split" ? coming : 0,
+        notComing: kind === "split" ? notComing : 0,
+        note,
+      },
+      group.records.length
+    );
 
     if (saved) {
       setMode("none");
@@ -259,8 +295,7 @@ function RsvpGroupRow({
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-semibold">{group.name}</span>
           <Badge variant={counts.coming ? "default" : "secondary"}>
-            {counts.coming}{" "}
-            {pluralizeRu(counts.coming, ["придёт", "придут", "придут"])} /{" "}
+            {counts.coming} {attendingVerb(counts.coming)} /{" "}
             {counts.notComing} нет
           </Badge>
           {unresolved ? (
@@ -292,7 +327,7 @@ function RsvpGroupRow({
           Решено:{" "}
           {group.resolution.kind === "single"
             ? `один человек, ${group.resolution.attending ? "придёт" : "не придёт"}`
-            : `${group.resolution.coming} ${pluralizeRu(group.resolution.coming, ["придёт", "придут", "придут"])}, ${group.resolution.notComing} нет`}
+            : `${group.resolution.coming} ${attendingVerb(group.resolution.coming)}, ${group.resolution.notComing} нет`}
           {group.resolution.note ? ` — ${group.resolution.note}` : ""}
         </p>
       ) : null}
