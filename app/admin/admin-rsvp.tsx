@@ -23,16 +23,21 @@ import {
   triggerRsvpBackup,
   type RsvpNameGroup,
   type RsvpRecord,
+  type RsvpResolution,
 } from "../rsvp-data";
 
 export function AdminRsvp() {
   const [records, setRecords] = useState<RsvpRecord[]>([]);
+  const [resolutions, setResolutions] = useState<RsvpResolution[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [backupSending, setBackupSending] = useState(false);
   const [backupStatus, setBackupStatus] = useState("");
 
-  const groups = useMemo(() => groupRsvpsByName(records), [records]);
+  const groups = useMemo(
+    () => groupRsvpsByName(records, resolutions),
+    [records, resolutions]
+  );
   const summary = useMemo(() => summarizeRsvps(groups), [groups]);
 
   useEffect(() => {
@@ -46,6 +51,7 @@ export function AdminRsvp() {
     try {
       const document = await fetchRsvps();
       setRecords(document.records);
+      setResolutions(document.resolutions);
     } catch {
       setError("Не удалось загрузить ответы.");
     } finally {

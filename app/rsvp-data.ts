@@ -275,6 +275,10 @@ export type RsvpNameGroup = {
   answerChanges: number;
   /** Two or more browsers answered under this name — the couple must look. */
   needsReview: boolean;
+  /** The couple's latest decision about this name, if any. */
+  resolution: RsvpResolution | null;
+  /** Answers arrived after the decision was made — worth another look. */
+  resolutionStale: boolean;
 };
 
 /**
@@ -283,7 +287,10 @@ export type RsvpNameGroup = {
  * review instead of being merged automatically. Repeat answers from one browser
  * are one person, however many times they changed their mind.
  */
-export function groupRsvpsByName(records: RsvpRecord[]): RsvpNameGroup[] {
+export function groupRsvpsByName(
+  records: RsvpRecord[],
+  resolutions: RsvpResolution[] = []
+): RsvpNameGroup[] {
   const groups = new Map<string, RsvpRecord[]>();
 
   for (const record of records) {
@@ -291,11 +298,14 @@ export function groupRsvpsByName(records: RsvpRecord[]): RsvpNameGroup[] {
     groups.set(key, [...(groups.get(key) ?? []), record]);
   }
 
+  const latestResolutions = latestResolutionByName(resolutions);
+
   return Array.from(groups.entries())
     .map(([key, groupRecords]) => {
       const sorted = sortByCreatedAt(groupRecords);
       const latest = sorted[sorted.length - 1];
       const submitters = groupBySubmitter(sorted);
+      const resolution = latestResolutions.get(key) ?? null;
 
       return {
         key,
@@ -308,12 +318,31 @@ export function groupRsvpsByName(records: RsvpRecord[]): RsvpNameGroup[] {
           0
         ),
         needsReview: submitters.length > 1,
+        resolution,
+        resolutionStale: resolution
+          ? sorted.length > resolution.recordCount
+          : false,
       };
     })
     .sort(
       (first, second) =>
         toTime(second.latest.createdAt) - toTime(first.latest.createdAt)
     );
+}
+
+function latestResolutionByName(resolutions: RsvpResolution[]) {
+  const latest = new Map<string, RsvpResolution>();
+
+  for (const resolution of resolutions) {
+    const key = rsvpNameKey(resolution.nameKey);
+    const current = latest.get(key);
+
+    if (!current || toTime(resolution.createdAt) >= toTime(current.createdAt)) {
+      latest.set(key, resolution);
+    }
+  }
+
+  return latest;
 }
 
 function groupBySubmitter(sorted: RsvpRecord[]): RsvpSubmitter[] {
@@ -350,8 +379,23 @@ function sortByCreatedAt(records: RsvpRecord[]) {
   );
 }
 
-/** How many people this name contributes to the headcount, and their answers. */
+/**
+ * How many people this name contributes to the headcount. A resolution decides
+ * outright; otherwise each browser counts as one person with its latest answer.
+ */
 export function countGroupPeople(group: RsvpNameGroup) {
+  const { resolution } = group;
+
+  if (resolution) {
+    if (resolution.kind === "single") {
+      return resolution.attending
+        ? { coming: 1, notComing: 0 }
+        : { coming: 0, notComing: 1 };
+    }
+
+    return { coming: resolution.coming, notComing: resolution.notComing };
+  }
+
   let coming = 0;
   let notComing = 0;
 
@@ -381,7 +425,10 @@ export function summarizeRsvps(groups: RsvpNameGroup[]) {
     notComing,
     people: coming + notComing,
     names: groups.length,
-    needsReview: groups.filter((group) => group.needsReview).length,
+    needsReview: groups.filter(
+      (group) => group.needsReview && !group.resolution
+    ).length,
+    stale: groups.filter((group) => group.resolutionStale).length,
   };
 }
 

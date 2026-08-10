@@ -8,6 +8,7 @@ import {
   summarizeRsvps,
   parseRsvpResolution,
 } from "../app/rsvp-data.ts";
+import type { RsvpResolution } from "../app/rsvp-data.ts";
 
 function record(
   name: string,
@@ -286,4 +287,82 @@ test("normalizes resolution nameKey to canonical form", () => {
     document.resolutions[0].nameKey,
     rsvpNameKey("Салима Е.")
   );
+});
+
+function resolution(overrides: Partial<RsvpResolution>): RsvpResolution {
+  return {
+    id: "r1",
+    nameKey: "алия к.",
+    kind: "single",
+    attending: true,
+    coming: 0,
+    notComing: 0,
+    note: "",
+    recordCount: 2,
+    createdAt: "2026-08-10T12:00:00.000Z",
+    ...overrides,
+  };
+}
+
+const twoDevices = [
+  record("Алия К.", true, "2026-08-10T10:00:00.000Z", "device-1"),
+  record("Алия К.", false, "2026-08-10T10:01:00.000Z", "device-2"),
+];
+
+test("a single resolution overrides the automatic count", () => {
+  const [group] = groupRsvpsByName(twoDevices, [
+    resolution({ kind: "single", attending: true }),
+  ]);
+
+  assert.deepEqual(countGroupPeople(group), { coming: 1, notComing: 0 });
+  assert.equal(group.resolutionStale, false);
+});
+
+test("a split resolution counts everyone it names", () => {
+  const [group] = groupRsvpsByName(twoDevices, [
+    resolution({ kind: "split", attending: false, coming: 2, notComing: 1 }),
+  ]);
+
+  assert.deepEqual(countGroupPeople(group), { coming: 2, notComing: 1 });
+});
+
+test("the newest resolution for a name wins", () => {
+  const [group] = groupRsvpsByName(twoDevices, [
+    resolution({ id: "old", attending: true, createdAt: "2026-08-10T12:00:00.000Z" }),
+    resolution({ id: "new", attending: false, createdAt: "2026-08-10T13:00:00.000Z" }),
+  ]);
+
+  assert.equal(group.resolution?.id, "new");
+  assert.deepEqual(countGroupPeople(group), { coming: 0, notComing: 1 });
+});
+
+test("a resolution goes stale when new answers arrive, but still counts", () => {
+  const [group] = groupRsvpsByName(
+    [
+      ...twoDevices,
+      record("Алия К.", true, "2026-08-10T14:00:00.000Z", "device-3"),
+    ],
+    [resolution({ kind: "single", attending: true, recordCount: 2 })]
+  );
+
+  assert.equal(group.resolutionStale, true);
+  assert.deepEqual(countGroupPeople(group), { coming: 1, notComing: 0 });
+});
+
+test("a resolution for another name is ignored", () => {
+  const [group] = groupRsvpsByName(twoDevices, [
+    resolution({ nameKey: "кто-то другой" }),
+  ]);
+
+  assert.equal(group.resolution, null);
+  assert.deepEqual(countGroupPeople(group), { coming: 1, notComing: 1 });
+});
+
+test("resolved groups drop out of the needs-review count", () => {
+  const summary = summarizeRsvps(
+    groupRsvpsByName(twoDevices, [resolution({ recordCount: 1 })])
+  );
+
+  assert.equal(summary.needsReview, 0);
+  assert.equal(summary.stale, 1);
 });
