@@ -33,10 +33,14 @@ triggerBackup() (client) → POST /api/backup → readWishlistRaw() (direct R2 r
    → Discord webhook (JSON file attachment)
 ```
 
-The RSVP flow mirrors both of those with its own key, routes, and backup:
+The RSVP flow mirrors both of those with its own key, routes, and backup — and has a second write
+path for the couple's resolutions, alongside the guest append path:
 
 ```
 /rsvp (guest) → POST /api/rsvp → appendRsvp() → R2 key "rsvps.json"  (append-only)
+   → triggerRsvpBackup() → POST /api/backup/rsvp → Discord webhook
+
+/admin RSVP section → POST /api/rsvp/resolve → appendResolution() → R2 key "rsvps.json"
    → triggerRsvpBackup() → POST /api/backup/rsvp → Discord webhook
 ```
 
@@ -95,9 +99,10 @@ field just get the default.
 | `app/api/backup/discord.ts` | `sendDiscordBackup()` — shared webhook POST used by both backup routes |
 | `app/rsvp-data.ts` | RSVP types, normalization, name validation, grouping/headcount, client fetch helpers |
 | `app/rsvp/guest-rsvp.tsx` | Guest RSVP UI — name input + "приду"/"не приду" buttons |
-| `app/admin/admin-rsvp.tsx` | Admin RSVP section — headcount and duplicate-name flags |
+| `app/admin/admin-rsvp.tsx` | Admin RSVP section — headcount, per-device review flags, and resolve controls |
 | `app/api/rsvp/route.ts` | GET the RSVP log; POST appends exactly one record |
-| `app/api/rsvp/store.ts` | Server-only R2 read + `appendRsvp()` |
+| `app/api/rsvp/resolve/route.ts` | POST appends one `RsvpResolution` deciding a name's headcount contribution |
+| `app/api/rsvp/store.ts` | Server-only R2 read + `appendRsvp()` / `appendResolution()` |
 | `app/api/backup/rsvp/route.ts` | Reads `rsvps.json` directly, POSTs it to the same Discord webhook |
 | `components/site-nav.tsx` | Shared tab bar (`/` and `/rsvp`) |
 | `app/api/parse-kaspi/route.ts` | Fetches a kaspi.kz page server-side, extracts product JSON-LD |
@@ -115,6 +120,14 @@ field just get the default.
   `onLayoutAnimationComplete`, since cards sit in a horizontally-swipeable row on mobile.
 - `tw-animate-css` is imported in `globals.css` for utility animation classes; `.no-scrollbar` is
   a custom utility (also in `globals.css`) used to hide the scrollbar on that mobile swipe row.
+
+## Tests
+
+`tests/rsvp-data.test.ts` covers the pure functions in `app/rsvp-data.ts` — grouping, staleness,
+resolution parsing/normalization — using Node's built-in `node:test` + `node:assert/strict`, no
+extra dependency. Run with `npm test` (`node --test "tests/**/*.test.ts"`). Nothing else in the
+app has a test harness yet; route handlers and R2-backed code aren't covered, since they need a
+running Workers/R2 environment rather than pure-function unit tests.
 
 ## This is not the Next.js you know
 

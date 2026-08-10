@@ -106,3 +106,20 @@ actually in the log were one person pressing the button repeatedly. The cost is 
 guests both answered before the id existed, they count as one person until one of them answers again
 from a browser that has an id. If a headcount ever looks one short for an old name, this is why —
 it isn't a grouping bug.
+
+## Normalization runs on every RSVP write, not just reads
+
+`appendRsvp()` and `appendResolution()` in `app/api/rsvp/store.ts` both read the current document,
+run it through `normalizeRsvps()`, and write the *normalized* result back — never the raw bytes
+that were sitting in R2. That's what lets a corrupted or malformed entry be dropped instead of
+500ing every read, but it also means "not accepted by `normalizeRecord()` / `normalizeResolution()`
+today" doesn't mean "harmlessly ignored" — it means gone the next time anyone appends anything,
+since that append rewrites the whole document through the same normalizer.
+
+`normalizeResolution()` calls `parseRsvpResolution()`, which doubles as the validator for the
+stored document *and* the incoming `POST /api/rsvp/resolve` body (`app/api/rsvp/resolve/route.ts`).
+Tightening its rules later — a lower `RESOLUTION_NOTE_MAX`, a newly-required field, whatever —
+wouldn't just start rejecting new resolve requests; it would silently delete any previously-valid
+resolution already in R2 the next time an append happens to run. Unreachable with today's data
+(nothing stored has ever failed today's rules), and not worth guarding against now, but worth
+knowing before that function's rules change.

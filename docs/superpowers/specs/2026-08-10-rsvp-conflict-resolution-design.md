@@ -162,6 +162,16 @@ supply a number the code guessed at.
 `recordCount` is the merge base. A resolution is stale when the group now holds more records than
 it did at resolve time.
 
+`recordCount` is the client's observed count for the group — what the couple actually had on
+screen when they decided — clamped server-side to `Math.min(observedRecordCount, serverCount)`.
+It must **not** be counted from storage at write time alone: the admin page fetches once on mount
+and never refetches, so a naive "count what's in storage right now" would silently bake in any
+answer that landed between page load and the resolve click, and that record would never be able to
+trigger staleness. The `Math.min` still keeps the client from being trusted outright — a spoofed
+or stale-high `observedRecordCount` can only push the resolution *closer* to stale, never suppress
+the flag, since it can't exceed what storage actually holds. A missing or invalid value falls back
+to `serverCount`.
+
 A stale resolution **still applies to the headcount** — it's an explicit human decision, and
 silently reverting to a guess because someone tapped a button would be worse than being slightly out
 of date. The group is flagged for another look, and resolving again clears it by recording the new

@@ -28,9 +28,12 @@ who changes their mind gets a second record, and the headcount uses the latest p
 `docs/rsvp.md`.
 
 The same rule covers resolutions: the couple's decisions about ambiguous names live in
-`document.resolutions`, are appended by `appendResolution()`, and are never edited — re-deciding
-appends another and the newest wins. Any new write path must preserve *both* arrays; `appendRsvp()`
-once rebuilt the document from `records` alone, which would have silently dropped every resolution.
+`document.resolutions`, are appended by `appendResolution()`, and the app never edits one in place —
+re-deciding appends another and the newest wins. Any new write path must preserve *both* arrays;
+`appendRsvp()` once rebuilt the document from `records` alone, which would have silently dropped
+every resolution. One caveat: both append functions read the document through `normalizeRsvps()`
+before writing it back, so this only holds as long as `normalizeRecord()` / `normalizeResolution()`
+keep accepting today's stored shape — see `docs/gotchas.md`.
 
 ## RSVP identity is not the wishlist nickname
 
