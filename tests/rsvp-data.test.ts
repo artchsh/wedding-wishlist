@@ -6,8 +6,8 @@ import {
   rsvpNameKey,
   countGroupPeople,
   summarizeRsvps,
+  parseRsvpResolution,
 } from "../app/rsvp-data.ts";
-import { parseRsvpResolution } from "../app/rsvp-data.ts";
 
 function record(
   name: string,
@@ -229,4 +229,61 @@ test("rejects an over-long note", () => {
   });
 
   assert.equal(result.ok, false);
+});
+
+test("normalizeRsvps filters out malformed resolutions", () => {
+  const document = normalizeRsvps({
+    records: [],
+    resolutions: [
+      {
+        id: "good-1",
+        nameKey: "салима е.",
+        kind: "single",
+        attending: true,
+        coming: 0,
+        notComing: 0,
+        note: "это одна и та же",
+        recordCount: 5,
+        createdAt: "2026-08-10T10:00:00.000Z",
+      },
+      {
+        id: "bad-1",
+        nameKey: "алия к.",
+        kind: "unknown",
+        attending: true,
+        coming: 0,
+        notComing: 0,
+        note: "",
+        recordCount: 3,
+        createdAt: "2026-08-10T10:01:00.000Z",
+      },
+    ],
+  });
+
+  assert.equal(document.resolutions.length, 1);
+  assert.equal(document.resolutions[0].id, "good-1");
+});
+
+test("normalizes resolution nameKey to canonical form", () => {
+  const document = normalizeRsvps({
+    records: [],
+    resolutions: [
+      {
+        id: "test-1",
+        nameKey: "  Салима   Е.  ",
+        kind: "single",
+        attending: true,
+        coming: 0,
+        notComing: 0,
+        note: "",
+        recordCount: 2,
+        createdAt: "2026-08-10T10:00:00.000Z",
+      },
+    ],
+  });
+
+  assert.equal(
+    document.resolutions[0].nameKey,
+    rsvpNameKey("Салима Е.")
+  );
 });

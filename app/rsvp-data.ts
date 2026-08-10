@@ -96,6 +96,7 @@ function normalizeResolution(entry: unknown): RsvpResolution | null {
         ? record.id
         : crypto.randomUUID(),
     ...parsed.value,
+    nameKey: rsvpNameKey(parsed.value.nameKey),
     recordCount:
       typeof record.recordCount === "number" &&
       Number.isInteger(record.recordCount) &&
