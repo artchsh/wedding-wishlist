@@ -252,6 +252,23 @@ function toPersonCount(value: unknown): number | null {
     : null;
 }
 
+/**
+ * The resolve route's merge base: the client's observed record count for a
+ * name group, clamped to what storage actually holds. A lower merge base can
+ * only make a resolution *more* likely to be flagged stale, never less, so a
+ * spoofed or stale-high `observed` value degrades to `serverCount` — today's
+ * behavior — and can never suppress the staleness flag. A missing or
+ * malformed `observed` value (not a non-negative integer) also falls back to
+ * `serverCount`.
+ */
+export function clampMergeBase(observed: unknown, serverCount: number): number {
+  return typeof observed === "number" &&
+    Number.isInteger(observed) &&
+    observed >= 0
+    ? Math.min(observed, serverCount)
+    : serverCount;
+}
+
 /** One presumed person within a name group: everything from a single browser. */
 export type RsvpSubmitter = {
   /** "" is the shared bucket for records written before submitter ids existed. */

@@ -66,8 +66,16 @@ export function AdminRsvp() {
     void loadRsvps();
   }, []);
 
-  async function loadRsvps() {
-    setLoading(true);
+  /**
+   * `silent` refetches without flipping `loading`, so the list doesn't blank
+   * to skeletons and unmount the row being worked in — used after a
+   * successful resolve, where the couple is mid-flow in that row. The mount
+   * load and the «Обновить» button still want the skeleton, so they omit it.
+   */
+  async function loadRsvps({ silent = false }: { silent?: boolean } = {}) {
+    if (!silent) {
+      setLoading(true);
+    }
     setError("");
 
     try {
@@ -77,7 +85,9 @@ export function AdminRsvp() {
     } catch {
       setError("Не удалось загрузить ответы.");
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }
 
@@ -118,8 +128,9 @@ export function AdminRsvp() {
     // Refetch rather than append the returned resolution locally: the
     // record list on screen is still as of page load, and a concurrent
     // guest submission could have raced appendResolution() and silently
-    // lost this write. Reloading surfaces both.
-    await loadRsvps();
+    // lost this write. Reloading surfaces both. Silent so it doesn't blank
+    // the list to skeletons and unmount the row mid-save.
+    await loadRsvps({ silent: true });
     setResolvingKey(null);
     void triggerRsvpBackup();
 
@@ -149,7 +160,7 @@ export function AdminRsvp() {
           <Button
             type="button"
             variant="outline"
-            onClick={loadRsvps}
+            onClick={() => void loadRsvps()}
             disabled={loading}
           >
             {loading ? <Loader2 className="animate-spin" /> : <RefreshCw />}

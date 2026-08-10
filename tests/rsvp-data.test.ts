@@ -7,6 +7,7 @@ import {
   countGroupPeople,
   summarizeRsvps,
   parseRsvpResolution,
+  clampMergeBase,
 } from "../app/rsvp-data.ts";
 import type { RsvpResolution } from "../app/rsvp-data.ts";
 
@@ -365,4 +366,20 @@ test("resolved groups drop out of the needs-review count", () => {
 
   assert.equal(summary.needsReview, 0);
   assert.equal(summary.stale, 1);
+});
+
+test("an observed count below the server count wins", () => {
+  assert.equal(clampMergeBase(2, 5), 2);
+});
+
+test("an observed count above the server count clamps to the server count", () => {
+  assert.equal(clampMergeBase(9, 5), 5);
+});
+
+test("a missing or invalid observed count falls back to the server count", () => {
+  assert.equal(clampMergeBase(undefined, 5), 5);
+  assert.equal(clampMergeBase(null, 5), 5);
+  assert.equal(clampMergeBase("3", 5), 5);
+  assert.equal(clampMergeBase(-1, 5), 5);
+  assert.equal(clampMergeBase(1.5, 5), 5);
 });

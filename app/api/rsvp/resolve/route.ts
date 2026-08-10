@@ -1,16 +1,10 @@
 import {
+  clampMergeBase,
   parseRsvpResolution,
   rsvpNameKey,
   type RsvpResolution,
 } from "@/app/rsvp-data";
 import { appendResolution, readRsvpDocument } from "../store";
-
-/** A trustworthy observed count: a non-negative integer. Anything else is "not sent". */
-function toObservedRecordCount(value: unknown): number | null {
-  return typeof value === "number" && Number.isInteger(value) && value >= 0
-    ? value
-    : null;
-}
 
 export async function POST(request: Request) {
   let payload: unknown;
@@ -48,16 +42,13 @@ export async function POST(request: Request) {
   // landed in storage between page load and this request. We take the
   // client's observed count (app/admin/admin-rsvp.tsx sends
   // group.records.length as of its last fetch) and clamp it to serverCount
-  // with Math.min — a client can only make its own resolution *more* stale
-  // this way, never less, so a spoofed high value can't suppress the flag.
-  // A missing or malformed value falls back to serverCount, today's behavior.
-  const observedRecordCount = toObservedRecordCount(
-    (payload as Record<string, unknown> | null)?.observedRecordCount
+  // — a client can only make its own resolution *more* stale this way, never
+  // less, so a spoofed high value can't suppress the flag. A missing or
+  // malformed value falls back to serverCount, today's behavior.
+  const recordCount = clampMergeBase(
+    (payload as Record<string, unknown> | null)?.observedRecordCount,
+    serverCount
   );
-  const recordCount =
-    observedRecordCount === null
-      ? serverCount
-      : Math.min(observedRecordCount, serverCount);
 
   const resolution: RsvpResolution = {
     id: crypto.randomUUID(),

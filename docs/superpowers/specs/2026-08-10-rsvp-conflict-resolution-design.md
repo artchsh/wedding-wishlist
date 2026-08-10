@@ -181,7 +181,7 @@ count.
 
 New route `POST /api/rsvp/resolve`:
 
-- Body: `{ nameKey, kind, attending?, coming?, notComing?, note? }`.
+- Body: `{ nameKey, kind, attending?, coming?, notComing?, note?, observedRecordCount? }`.
 - Validates: `nameKey` non-empty; `kind` one of the two; for `"split"`, `coming` and `notComing`
   are non-negative integers summing to at least 2 (a split into fewer than two people is a
   `"single"`); `note` trimmed, capped at 200 characters.
