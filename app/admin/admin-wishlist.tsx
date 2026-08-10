@@ -38,6 +38,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { AdminRsvp } from "./admin-rsvp";
 import {
   fetchWishlist,
   formatDeliveryEstimate,
@@ -618,6 +619,10 @@ export function AdminWishlist() {
               </CardContent>
             </Card>
           )}
+
+          <Separator className="my-2" />
+
+          <AdminRsvp />
         </section>
       </div>
     </main>

@@ -7,6 +7,11 @@ Two client-rendered pages share one JSON document of gift items:
 - **`/` (guest page)** — [`app/page.tsx`](../app/page.tsx) → [`app/guest-wishlist.tsx`](../app/guest-wishlist.tsx)
 - **`/admin` (admin page)** — [`app/admin/page.tsx`](../app/admin/page.tsx) → [`app/admin/admin-wishlist.tsx`](../app/admin/admin-wishlist.tsx)
 
+A third page, **`/rsvp`**, is a separate flow with its own storage document and its own notion of
+guest identity (real name, not wishlist nickname) — see [`rsvp.md`](rsvp.md).
+[`components/site-nav.tsx`](../components/site-nav.tsx) is the shared tab bar linking `/` and
+`/rsvp`.
+
 Both are `"use client"` components. There's no server-rendered data path — each page fetches the
 wishlist after mount via helpers in [`app/wishlist-data.ts`](../app/wishlist-data.ts), then
 re-fetches/re-renders on every mutation.
@@ -26,6 +31,13 @@ A separate path triggers after every successful write:
 ```
 triggerBackup() (client) → POST /api/backup → readWishlistRaw() (direct R2 read)
    → Discord webhook (JSON file attachment)
+```
+
+The RSVP flow mirrors both of those with its own key, routes, and backup:
+
+```
+/rsvp (guest) → POST /api/rsvp → appendRsvp() → R2 key "rsvps.json"  (append-only)
+   → triggerRsvpBackup() → POST /api/backup/rsvp → Discord webhook
 ```
 
 And an admin-only path for importing gifts:
@@ -79,7 +91,15 @@ field just get the default.
 | `app/admin/admin-wishlist.tsx` | Admin UI — password gate, CRUD, category order, Kaspi import, manual backup |
 | `app/api/wishlist/route.ts` | GET/POST the wishlist document; owns the edge-cache logic |
 | `app/api/wishlist/store.ts` | Server-only raw R2 read, shared by the wishlist route and backup route |
-| `app/api/backup/route.ts` | Reads R2 directly, POSTs the JSON to a Discord webhook as a file |
+| `app/api/backup/route.ts` | Reads R2 directly, POSTs the wishlist JSON to Discord as a file |
+| `app/api/backup/discord.ts` | `sendDiscordBackup()` — shared webhook POST used by both backup routes |
+| `app/rsvp-data.ts` | RSVP types, normalization, name validation, grouping/headcount, client fetch helpers |
+| `app/rsvp/guest-rsvp.tsx` | Guest RSVP UI — name input + "приду"/"не приду" buttons |
+| `app/admin/admin-rsvp.tsx` | Admin RSVP section — headcount and duplicate-name flags |
+| `app/api/rsvp/route.ts` | GET the RSVP log; POST appends exactly one record |
+| `app/api/rsvp/store.ts` | Server-only R2 read + `appendRsvp()` |
+| `app/api/backup/rsvp/route.ts` | Reads `rsvps.json` directly, POSTs it to the same Discord webhook |
+| `components/site-nav.tsx` | Shared tab bar (`/` and `/rsvp`) |
 | `app/api/parse-kaspi/route.ts` | Fetches a kaspi.kz page server-side, extracts product JSON-LD |
 | `components/ui/*` | shadcn/ui components (Card, Button, Badge, Input, etc.) |
 

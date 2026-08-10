@@ -19,6 +19,10 @@ server-only helper that reads the R2 object directly (no HTTP, no cache layer). 
 because [`app/api/backup/route.ts`](../app/api/backup/route.ts) needs the current document but
 **cannot** call the client-side `fetchWishlist()` helper — see `gotchas.md` for why.
 
+The same bucket also holds `rsvps.json` — the append-only RSVP log, written through
+[`app/api/rsvp/store.ts`](../app/api/rsvp/store.ts). It reuses the `WISHLIST_BUCKET` binding and is
+not edge-cached. See [`rsvp.md`](rsvp.md).
+
 ## Full-document replace semantics
 
 There is no partial update. Every mutation (reserve, cancel, admin add/edit/delete, category

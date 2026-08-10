@@ -22,6 +22,17 @@ call `replaceWishlist(items, categoryOrder)` which POSTs the entire document bac
 locking, so concurrent writes can race; this has been an accepted tradeoff so far. See
 `docs/storage.md`.
 
+RSVPs are the exception: `rsvps.json` (same bucket) is an **append-only** log written server-side
+by `appendRsvp()` in `app/api/rsvp/store.ts`. Never rewrite or delete an existing record — a guest
+who changes their mind gets a second record, and the headcount uses the latest per name. See
+`docs/rsvp.md`.
+
+## RSVP identity is not the wishlist nickname
+
+`/` asks for a throwaway nickname; `/rsvp` asks for the guest's real name in "first name + surname
+initial" format (`Александр П.`). Separate `localStorage` keys, separate documents, separate
+validation. Don't unify them.
+
 ## Critical: client vs. server fetch helpers
 
 `fetchWishlist()` / `replaceWishlist()` / `triggerBackup()` / `parseKaspiUrl()` in
@@ -29,7 +40,9 @@ locking, so concurrent writes can race; this has been an accepted tradeoff so fa
 in a browser. **Never call these from server-side code** (Route Handlers, server components) —
 it will throw `TypeError: Failed to parse URL`. Server-side code that needs the wishlist data
 should import `readWishlistRaw()` from `app/api/wishlist/store.ts` and read the R2 binding
-directly instead. This exact bug already broke `/api/backup` once — see `docs/gotchas.md`.
+directly instead. This exact bug already broke `/api/backup` once — see `docs/gotchas.md`. The
+same split applies to RSVP: `app/rsvp-data.ts` is client-only for fetching, `app/api/rsvp/store.ts`
+(`readRsvpDocument()` / `appendRsvp()`) is the server-side path.
 
 ## Before touching deployment config
 
@@ -43,8 +56,8 @@ this exact issue.
 
 - All user-facing copy is in Russian, casual/informal tone (the actual couple's voice, including
   profanity in places) — match the existing tone, don't formalize it.
-- Both guest and admin pages are `"use client"` components; there is no server-rendered data
-  fetching path currently — everything fetches client-side after mount.
+- The guest, RSVP, and admin pages are all `"use client"` components; there is no server-rendered
+  data fetching path currently — everything fetches client-side after mount.
 - Prices are stored as free-text strings (`WishlistItem.price`) with a separate `priceCurrency`
   ("KZT" | "USD"); `parsePrice()` strips non-digits, so never store decimals in the string (e.g.
   a $49.99 item must be stored as a whole-dollar amount or it parses as 4999).

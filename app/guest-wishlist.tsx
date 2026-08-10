@@ -17,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SiteNav } from "@/components/site-nav";
 import {
   fetchUsdToKztRate,
   formatDeliveryEstimate,
@@ -216,6 +217,8 @@ export function GuestWishlist() {
   return (
     <main className="min-h-screen bg-muted/30">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 sm:gap-8 px-4 py-8 sm:px-6 lg:px-8">
+        <SiteNav />
+
         <header className="grid gap-6 lg:grid-cols-[1fr_320px] lg:items-end">
           <div className="space-y-3">
             {/* <Badge variant="secondary">Свадьба Гея и Би</Badge> */}

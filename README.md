@@ -4,8 +4,10 @@ A small Next.js app for managing a wedding gift wishlist: guests browse gifts an
 by name, and a password-gated admin panel manages the inventory. Deployed on Cloudflare Workers.
 
 - **Guest page** (`/`): browse gifts by category, reserve/cancel, or send cash via Kaspi transfer.
+- **RSVP page** (`/rsvp`): guests give their real name ("Александр П.") and answer "приду" /
+  "не приду". Append-only log, separate from the wishlist nickname flow.
 - **Admin page** (`/admin`): add/edit/delete gifts, reorder categories, auto-import a gift from a
-  Kaspi.kz product link, and trigger a manual Discord backup.
+  Kaspi.kz product link, trigger a manual Discord backup, and read the RSVP headcount.
 
 For the full architecture, deployment process, and known gotchas, see [`docs/`](docs/) —
 start with [`docs/architecture.md`](docs/architecture.md).
@@ -66,15 +68,26 @@ secrets) and CI configuration details.
 app/
   page.tsx                  Guest page (renders GuestWishlist)
   guest-wishlist.tsx         Guest UI: browse, reserve, cancel, animations
+  rsvp/
+    page.tsx                RSVP page (renders GuestRsvp)
+    guest-rsvp.tsx           RSVP UI: real-name input + "приду" / "не приду"
   admin/
     page.tsx                Admin page (renders AdminWishlist)
     admin-wishlist.tsx       Admin UI: CRUD, category order, Kaspi import, backups
+    admin-rsvp.tsx           Admin RSVP section: headcount + duplicate-name flags
   wishlist-data.ts          Shared types, normalization, client-side fetch helpers
+  rsvp-data.ts              RSVP types, name validation, grouping, client-side fetch helpers
   api/
     wishlist/route.ts        GET/POST the wishlist JSON (R2-backed, edge-cached)
     wishlist/store.ts         Server-only R2 read helper (shared by wishlist + backup routes)
+    rsvp/route.ts            GET the RSVP log; POST appends one record
+    rsvp/store.ts             Server-only R2 read + append helper for rsvps.json
     backup/route.ts          POSTs the current wishlist JSON to Discord as a file
+    backup/rsvp/route.ts      POSTs the RSVP log to Discord as a file
+    backup/discord.ts         Shared Discord webhook POST helper
     parse-kaspi/route.ts      Scrapes a Kaspi.kz product page for title/price/image/category
+components/
+  site-nav.tsx              Shared tab bar linking / and /rsvp
 scripts/
   scrape-products.py         Playwright scraper used to bulk-import gifts from ITEMS_URLS.md
 docs/                        Architecture, storage, deployment, admin, and gotchas docs

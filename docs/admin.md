@@ -28,6 +28,9 @@ simple for a low-stakes, single-event use case. Don't treat it as a security bou
   alphabetically (Russian collation) after the ordered ones, with "Другое" ("Other") always last.
 - **Manual Discord backup** — "Отправить бэкап в Discord" button calls the same
   `triggerBackup()` helper that fires automatically after every save, for testing/on-demand use.
+- **RSVP** — a separate section below the gift inventory ([`app/admin/admin-rsvp.tsx`](../app/admin/admin-rsvp.tsx))
+  with the headcount, the full answer log, and duplicate-name flags. It reads its own document and
+  does not go through `persist()`. See [`rsvp.md`](rsvp.md).
 
 ## Every mutation goes through `persist()`
 
