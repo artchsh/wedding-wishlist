@@ -4,8 +4,9 @@ import {
   groupRsvpsByName,
   normalizeRsvps,
   rsvpNameKey,
+  countGroupPeople,
+  summarizeRsvps,
 } from "../app/rsvp-data.ts";
-import { countGroupPeople, summarizeRsvps } from "../app/rsvp-data.ts";
 
 function record(
   name: string,
@@ -101,6 +102,7 @@ test("two browsers under one name need review and count as two people", () => {
 
   assert.equal(group.submitters.length, 2);
   assert.equal(group.needsReview, true);
+  assert.equal(group.answerChanges, 0);
   assert.deepEqual(countGroupPeople(group), { coming: 1, notComing: 1 });
 });
 
@@ -124,6 +126,17 @@ test("legacy records with no submitterId share one bucket", () => {
   assert.equal(group.submitters.length, 1);
   assert.equal(group.needsReview, false);
   assert.deepEqual(countGroupPeople(group), { coming: 1, notComing: 0 });
+});
+
+test("legacy record and new device id together need review and count as two people", () => {
+  const [group] = groupRsvpsByName([
+    record("Нургис М.", true, "2026-08-10T10:00:00.000Z"),
+    record("Нургис М.", false, "2026-08-10T10:01:00.000Z", "device-3"),
+  ]);
+
+  assert.equal(group.submitters.length, 2);
+  assert.equal(group.needsReview, true);
+  assert.deepEqual(countGroupPeople(group), { coming: 1, notComing: 1 });
 });
 
 test("the summary totals people, not names", () => {
