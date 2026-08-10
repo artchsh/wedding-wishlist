@@ -26,19 +26,25 @@ The log is one JSON document at key `rsvps.json` in the same R2 bucket as `wishl
 
 ```ts
 type RsvpRecord = {
-  id: string;         // server-assigned
-  name: string;       // trimmed, inner whitespace collapsed
+  id: string;            // server-assigned
+  name: string;          // trimmed, inner whitespace collapsed
   attending: boolean;
-  createdAt: string;  // server-assigned ISO timestamp
+  submitterId: string;   // anonymous per-browser id, see "Submitter identity" below
+  createdAt: string;     // server-assigned ISO timestamp
 };
 
-type RsvpDocument = { records: RsvpRecord[]; updatedAt?: string };
+type RsvpDocument = {
+  records: RsvpRecord[];
+  resolutions: RsvpResolution[]; // see "Resolutions" below
+  updatedAt?: string;
+};
 ```
 
 **Records are never modified or deleted.** `appendRsvp()` in
 [`app/api/rsvp/store.ts`](../app/api/rsvp/store.ts) reads the current document, pushes one record,
 and writes it back — that's the only mutation the log supports. A guest who changes their mind
-submits again and gets a second record; the headcount uses the latest one per name.
+submits again and gets a second record — see "Admin section" below for how those records turn
+into a headcount.
 
 `id` and `createdAt` are assigned server-side in the route handler, not sent by the client, so a
 record can't be back-dated or spoofed.
@@ -95,15 +101,34 @@ the helper.
 `/admin`, behind the same password gate. It fetches `/api/rsvp` on mount and derives everything
 client-side:
 
-- **Headcount** — "N придут / M не придут", counted from the *latest* record per unique name
-  (`groupRsvpsByName()` keys on the lowercased, whitespace-collapsed name, so "александр п." and
-  "Александр П." are the same person).
-- **Duplicate flag** — any name with more than one submission gets an amber border and its full
-  record list expanded inline. If those submissions disagree about coming vs. not coming, the
-  border turns destructive-red and the badge says so.
+- **Headcount** — "N придут / M не придут". For each name (`groupRsvpsByName()` keys on the
+  lowercased, whitespace-collapsed name, so "александр п." and "Александр П." are the same
+  person), a resolution decides that name's contribution to the count outright; without one,
+  every browser (`submitterId`) that answered under the name counts as one person, using that
+  browser's latest answer (`countGroupPeople()` in [`app/rsvp-data.ts`](../app/rsvp-data.ts)).
+- **Row states** — `RsvpGroupRow` in `admin-rsvp.tsx` renders one of four states per name:
+  - *Clean*: one browser answered. Just the count badge.
+  - *Changed their mind*: one browser, more than one answer. A muted "менял(а) ответ N раз" note
+    (`answerChanges`, counts flips not records) — not a warning, no border colour.
+  - *Needs review*: two or more browsers answered and there's no resolution yet
+    (`group.needsReview && !group.resolution`). Destructive-red border, a "Ответы с N устройств"
+    badge, and the raw records expanded below, grouped per device ("Устройство 1", "Устройство
+    2", ...). Two buttons appear: «Это один человек» and «Разные люди».
+  - *Resolved*: a resolution exists for the name. Shows "Решено: ..." with the decision and note.
+    The border is plain unless more records have arrived since the decision was made
+    (`resolutionStale`), in which case it turns amber with a "После решения пришли новые ответы"
+    badge — the resolution still decides the headcount, it's just flagged for another look. The
+    two resolve buttons stay available whenever the name still has 2+ devices, so the couple can
+    re-resolve after new answers come in.
+- **Resolve controls** — «Это один человек» opens a form to pick придёт/не придёт plus an optional
+  note; «Разные люди» opens two number inputs (how many coming, how many not — at least two people
+  total) plus a note. Both are inline on the row, and both call `submitRsvpResolution()` →
+  `POST /api/rsvp/resolve`, which appends a new `RsvpResolution` — never edits or deletes a past
+  one.
 
-The duplicate flag exists because two real guests can legitimately share one name string. There is
-deliberately **no merge UI** — the couple knows their guest list, so surfacing the raw records for
-a flagged name and letting them eyeball it is enough.
+The review flag exists because two real guests can legitimately share one name string, and the
+couple reconciles that against their own guest list. There's a lightweight resolve UI — pick "one
+person" or "different people" and write a note — but deliberately no per-record assignment to
+named individuals: the couple eyeballs the raw records grouped by device and makes the call.
 
 There's also a manual "Бэкап в Discord" button, mirroring the wishlist's.
