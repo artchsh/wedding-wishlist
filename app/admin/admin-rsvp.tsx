@@ -153,7 +153,10 @@ export function AdminRsvp() {
       <Card>
         <CardHeader>
           <CardTitle>
-            {summary.coming} придут / {summary.notComing} не придут
+            {summary.coming}{" "}
+            {pluralizeRu(summary.coming, ["придёт", "придут", "придут"])} /{" "}
+            {summary.notComing} не{" "}
+            {pluralizeRu(summary.notComing, ["придёт", "придут", "придут"])}
           </CardTitle>
           <CardDescription>
             {summary.names}{" "}
@@ -220,6 +223,20 @@ function RsvpGroupRow({
       ? "border-destructive/60 bg-destructive/5"
       : "";
 
+  function openSingle() {
+    setAttending(group.latest.attending);
+    setNote("");
+    setMode("single");
+  }
+
+  function openSplit() {
+    const fresh = countGroupPeople({ ...group, resolution: null });
+    setComing(fresh.coming);
+    setNotComing(fresh.notComing);
+    setNote("");
+    setMode("split");
+  }
+
   // Only closes on success — a failed write keeps the entered values on screen.
   async function save(kind: "single" | "split") {
     const saved = await onResolve({
@@ -242,7 +259,9 @@ function RsvpGroupRow({
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-semibold">{group.name}</span>
           <Badge variant={counts.coming ? "default" : "secondary"}>
-            {counts.coming} придут / {counts.notComing} нет
+            {counts.coming}{" "}
+            {pluralizeRu(counts.coming, ["придёт", "придут", "придут"])} /{" "}
+            {counts.notComing} нет
           </Badge>
           {unresolved ? (
             <Badge variant="destructive">
@@ -273,7 +292,7 @@ function RsvpGroupRow({
           Решено:{" "}
           {group.resolution.kind === "single"
             ? `один человек, ${group.resolution.attending ? "придёт" : "не придёт"}`
-            : `${group.resolution.coming} придут, ${group.resolution.notComing} нет`}
+            : `${group.resolution.coming} ${pluralizeRu(group.resolution.coming, ["придёт", "придут", "придут"])}, ${group.resolution.notComing} нет`}
           {group.resolution.note ? ` — ${group.resolution.note}` : ""}
         </p>
       ) : null}
@@ -281,23 +300,40 @@ function RsvpGroupRow({
       {showHistory ? (
         <>
           <Separator />
-          {group.submitters.map((submitter, index) => (
-            <div key={submitter.submitterId || "legacy"} className="space-y-1">
-              <p className="text-xs font-medium">
-                {submitter.submitterId
-                  ? `Устройство ${index + 1}`
-                  : "Старые ответы (без устройства)"}
-              </p>
-              <ul className="space-y-1 text-xs text-muted-foreground">
-                {submitter.records.map((record) => (
-                  <li key={record.id} className="flex justify-between gap-3">
-                    <span>{record.attending ? "придёт" : "не придёт"}</span>
-                    <span>{formatRsvpTimestamp(record.createdAt)}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+          {(() => {
+            let deviceNumber = 0;
+            return group.submitters.map((submitter) => {
+              if (submitter.submitterId) {
+                deviceNumber += 1;
+              }
+
+              return (
+                <div
+                  key={submitter.submitterId || "legacy"}
+                  className="space-y-1"
+                >
+                  <p className="text-xs font-medium">
+                    {submitter.submitterId
+                      ? `Устройство ${deviceNumber}`
+                      : "Старые ответы (без устройства)"}
+                  </p>
+                  <ul className="space-y-1 text-xs text-muted-foreground">
+                    {submitter.records.map((record) => (
+                      <li
+                        key={record.id}
+                        className="flex justify-between gap-3"
+                      >
+                        <span>
+                          {record.attending ? "придёт" : "не придёт"}
+                        </span>
+                        <span>{formatRsvpTimestamp(record.createdAt)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            });
+          })()}
         </>
       ) : null}
 
@@ -310,7 +346,7 @@ function RsvpGroupRow({
                 variant="outline"
                 size="sm"
                 disabled={busy}
-                onClick={() => setMode("single")}
+                onClick={openSingle}
               >
                 Это один человек
               </Button>
@@ -319,7 +355,7 @@ function RsvpGroupRow({
                 variant="outline"
                 size="sm"
                 disabled={busy}
-                onClick={() => setMode("split")}
+                onClick={openSplit}
               >
                 Разные люди
               </Button>
@@ -433,7 +469,9 @@ function RsvpGroupRow({
             </div>
           ) : null}
 
-          {error ? <p className="text-xs text-destructive">{error}</p> : null}
+          {error && mode !== "none" ? (
+            <p className="text-xs text-destructive">{error}</p>
+          ) : null}
         </>
       ) : null}
     </div>
