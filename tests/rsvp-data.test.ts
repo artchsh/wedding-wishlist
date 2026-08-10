@@ -1,6 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { groupRsvpsByName, rsvpNameKey } from "../app/rsvp-data.ts";
+import {
+  groupRsvpsByName,
+  normalizeRsvps,
+  rsvpNameKey,
+} from "../app/rsvp-data.ts";
 
 function record(
   name: string,
@@ -29,4 +33,35 @@ test("the newest record is the group's latest answer", () => {
   ]);
 
   assert.equal(groups[0].latest.attending, true);
+});
+
+test("normalizes a missing submitterId to an empty string", () => {
+  const document = normalizeRsvps({
+    records: [
+      {
+        id: "a",
+        name: "Салима Е.",
+        attending: true,
+        createdAt: "2026-08-10T10:00:00.000Z",
+      },
+    ],
+  });
+
+  assert.equal(document.records[0].submitterId, "");
+});
+
+test("keeps a submitterId that is present", () => {
+  const document = normalizeRsvps({
+    records: [
+      {
+        id: "a",
+        name: "Салима Е.",
+        attending: true,
+        submitterId: "device-1",
+        createdAt: "2026-08-10T10:00:00.000Z",
+      },
+    ],
+  });
+
+  assert.equal(document.records[0].submitterId, "device-1");
 });

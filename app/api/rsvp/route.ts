@@ -39,11 +39,16 @@ export async function POST(request: Request) {
   }
 
   // id and createdAt are assigned server-side so a record can't be back-dated or
-  // spoofed from the client.
+  // spoofed from the client. submitterId is the exception: only the client can
+  // know which browser this is, and it has to stay stable across submissions.
   const record: RsvpRecord = {
     id: crypto.randomUUID(),
     name: normalizeRsvpName(rawName),
     attending: body.attending,
+    submitterId:
+      typeof body.submitterId === "string"
+        ? body.submitterId.slice(0, 100)
+        : "",
     createdAt: new Date().toISOString(),
   };
 

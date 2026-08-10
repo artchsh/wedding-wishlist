@@ -2,6 +2,8 @@ export type RsvpRecord = {
   id: string;
   name: string;
   attending: boolean;
+  /** Anonymous per-browser id. "" for records written before this existed. */
+  submitterId: string;
   createdAt: string;
 };
 
@@ -52,6 +54,8 @@ function normalizeRecord(entry: unknown): RsvpRecord | null {
         : crypto.randomUUID(),
     name,
     attending: record.attending === true,
+    submitterId:
+      typeof record.submitterId === "string" ? record.submitterId : "",
     createdAt:
       typeof record.createdAt === "string"
         ? record.createdAt
@@ -190,6 +194,24 @@ export function formatRsvpTimestamp(value: string) {
   }).format(date);
 }
 
+const SUBMITTER_STORAGE_KEY = "wedding-rsvp-submitter";
+
+/**
+ * Anonymous id for this browser, created on first use. Identifies a device, not
+ * a person — it carries no name and nothing derived from the device. Client-only:
+ * it reads localStorage.
+ */
+export function getSubmitterId() {
+  const existing = window.localStorage.getItem(SUBMITTER_STORAGE_KEY);
+
+  if (existing) return existing;
+
+  const created = crypto.randomUUID();
+  window.localStorage.setItem(SUBMITTER_STORAGE_KEY, created);
+
+  return created;
+}
+
 export async function fetchRsvps(signal?: AbortSignal) {
   const response = await fetch("/api/rsvp", {
     method: "GET",
@@ -219,7 +241,7 @@ export async function submitRsvp(
     const response = await fetch("/api/rsvp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, attending }),
+      body: JSON.stringify({ name, attending, submitterId: getSubmitterId() }),
     });
 
     const data = (await response.json().catch(() => null)) as
