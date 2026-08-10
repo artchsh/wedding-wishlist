@@ -113,16 +113,16 @@ export function AdminRsvp() {
             {summary.coming} придут / {summary.notComing} не придут
           </CardTitle>
           <CardDescription>
-            {summary.people}{" "}
-            {pluralizeRu(summary.people, ["имя", "имени", "имён"])},{" "}
+            {summary.names}{" "}
+            {pluralizeRu(summary.names, ["имя", "имени", "имён"])},{" "}
             {records.length}{" "}
             {pluralizeRu(records.length, ["ответ", "ответа", "ответов"])} всего
-            {summary.flagged
-              ? ` · ${summary.flagged} ${pluralizeRu(summary.flagged, [
+            {summary.needsReview
+              ? ` · ${summary.needsReview} ${pluralizeRu(summary.needsReview, [
                   "имя",
                   "имени",
                   "имён",
-                ])} с несколькими ответами — проверьте вручную`
+                ])} с ответами с разных устройств — проверьте вручную`
               : ""}
           </CardDescription>
         </CardHeader>
@@ -145,40 +145,26 @@ export function AdminRsvp() {
 }
 
 function RsvpGroupRow({ group }: { group: RsvpNameGroup }) {
-  const flagged = group.duplicated;
+  const flagged = group.needsReview;
 
   return (
-    <div
-      className={`space-y-2 border p-3 ${
-        group.conflicting
-          ? "border-destructive/60 bg-destructive/5"
-          : flagged
-            ? "border-amber-500/60"
-            : ""
-      }`}
-    >
+    <div className={`space-y-2 border p-3 ${flagged ? "border-amber-500/60" : ""}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-semibold">{group.name}</span>
           <Badge variant={group.latest.attending ? "default" : "secondary"}>
             {group.latest.attending ? "Придёт" : "Не придёт"}
           </Badge>
-          {group.conflicting ? (
-            <Badge variant="destructive">
-              <AlertTriangle />
-              Ответы противоречат друг другу
-            </Badge>
-          ) : flagged ? (
+          {flagged ? (
             <Badge variant="outline">
               <AlertTriangle />
-              {group.records.length}{" "}
-              {pluralizeRu(group.records.length, [
-                "ответ",
-                "ответа",
-                "ответов",
-              ])}{" "}
-              под одним именем
+              Ответы с {group.submitters.length} устройств
             </Badge>
+          ) : group.answerChanges > 0 ? (
+            <span className="text-xs text-muted-foreground">
+              менял(а) ответ {group.answerChanges}{" "}
+              {pluralizeRu(group.answerChanges, ["раз", "раза", "раз"])}
+            </span>
           ) : null}
         </div>
         <span className="text-xs text-muted-foreground">
@@ -186,7 +172,7 @@ function RsvpGroupRow({ group }: { group: RsvpNameGroup }) {
         </span>
       </div>
 
-      {flagged ? (
+      {flagged || group.answerChanges > 0 ? (
         <>
           <Separator />
           <ul className="space-y-1 text-xs text-muted-foreground">

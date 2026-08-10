@@ -103,24 +103,36 @@ export function validateRsvpName(value: string): string | null {
   return null;
 }
 
+/** One presumed person within a name group: everything from a single browser. */
+export type RsvpSubmitter = {
+  /** "" is the shared bucket for records written before submitter ids existed. */
+  submitterId: string;
+  /** Oldest first. */
+  records: RsvpRecord[];
+  latest: RsvpRecord;
+};
+
 export type RsvpNameGroup = {
   key: string;
   /** Display name taken from the most recent submission for this key. */
   name: string;
   /** Every submission for this name, oldest first. */
   records: RsvpRecord[];
-  /** The most recent submission — the one that counts toward the headcount. */
+  /** One entry per distinct browser that answered under this name. */
+  submitters: RsvpSubmitter[];
+  /** The most recent submission across all submitters. */
   latest: RsvpRecord;
-  /** More than one submission under the same name string. */
-  duplicated: boolean;
-  /** Submissions under this name disagree about coming vs. not coming. */
-  conflicting: boolean;
+  /** How many times an answer flipped within a single browser. Not a warning. */
+  answerChanges: number;
+  /** Two or more browsers answered under this name — the couple must look. */
+  needsReview: boolean;
 };
 
 /**
- * Groups the append-only log by name. Two real guests can share one name string,
- * so groups with more than one record are flagged for manual review instead of
- * being merged automatically.
+ * Groups the append-only log by name, then by browser. Two real guests can share
+ * one name string, so a name answered from several browsers is flagged for manual
+ * review instead of being merged automatically. Repeat answers from one browser
+ * are one person, however many times they changed their mind.
  */
 export function groupRsvpsByName(records: RsvpRecord[]): RsvpNameGroup[] {
   const groups = new Map<string, RsvpRecord[]>();
@@ -132,18 +144,21 @@ export function groupRsvpsByName(records: RsvpRecord[]): RsvpNameGroup[] {
 
   return Array.from(groups.entries())
     .map(([key, groupRecords]) => {
-      const sorted = [...groupRecords].sort(
-        (first, second) => toTime(first.createdAt) - toTime(second.createdAt)
-      );
+      const sorted = sortByCreatedAt(groupRecords);
       const latest = sorted[sorted.length - 1];
+      const submitters = groupBySubmitter(sorted);
 
       return {
         key,
         name: latest.name,
         records: sorted,
+        submitters,
         latest,
-        duplicated: sorted.length > 1,
-        conflicting: new Set(sorted.map((record) => record.attending)).size > 1,
+        answerChanges: submitters.reduce(
+          (total, submitter) => total + countAnswerFlips(submitter.records),
+          0
+        ),
+        needsReview: submitters.length > 1,
       };
     })
     .sort(
@@ -152,12 +167,72 @@ export function groupRsvpsByName(records: RsvpRecord[]): RsvpNameGroup[] {
     );
 }
 
+function groupBySubmitter(sorted: RsvpRecord[]): RsvpSubmitter[] {
+  const buckets = new Map<string, RsvpRecord[]>();
+
+  for (const record of sorted) {
+    const key = record.submitterId;
+    buckets.set(key, [...(buckets.get(key) ?? []), record]);
+  }
+
+  return Array.from(buckets.entries()).map(([submitterId, bucketRecords]) => ({
+    submitterId,
+    records: bucketRecords,
+    latest: bucketRecords[bucketRecords.length - 1],
+  }));
+}
+
+/** Counts flips, not records: five identical answers in a row is zero changes. */
+function countAnswerFlips(records: RsvpRecord[]) {
+  let flips = 0;
+
+  for (let index = 1; index < records.length; index += 1) {
+    if (records[index].attending !== records[index - 1].attending) {
+      flips += 1;
+    }
+  }
+
+  return flips;
+}
+
+function sortByCreatedAt(records: RsvpRecord[]) {
+  return [...records].sort(
+    (first, second) => toTime(first.createdAt) - toTime(second.createdAt)
+  );
+}
+
+/** How many people this name contributes to the headcount, and their answers. */
+export function countGroupPeople(group: RsvpNameGroup) {
+  let coming = 0;
+  let notComing = 0;
+
+  for (const submitter of group.submitters) {
+    if (submitter.latest.attending) {
+      coming += 1;
+    } else {
+      notComing += 1;
+    }
+  }
+
+  return { coming, notComing };
+}
+
 export function summarizeRsvps(groups: RsvpNameGroup[]) {
+  let coming = 0;
+  let notComing = 0;
+
+  for (const group of groups) {
+    const counts = countGroupPeople(group);
+    coming += counts.coming;
+    notComing += counts.notComing;
+  }
+
   return {
-    coming: groups.filter((group) => group.latest.attending).length,
-    notComing: groups.filter((group) => !group.latest.attending).length,
-    flagged: groups.filter((group) => group.duplicated).length,
-    people: groups.length,
+    coming,
+    notComing,
+    people: coming + notComing,
+    names: groups.length,
+    needsReview: groups.filter((group) => group.needsReview).length,
   };
 }
 
