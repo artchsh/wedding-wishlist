@@ -7,8 +7,43 @@ export type RsvpRecord = {
   createdAt: string;
 };
 
+export type RsvpResolutionKind = "single" | "split";
+
+/**
+ * The couple's decision about one ambiguous name. Append-only like records:
+ * changing your mind appends another one and the newest wins.
+ */
+export type RsvpResolution = {
+  id: string;
+  /** rsvpNameKey() of the name this applies to. */
+  nameKey: string;
+  kind: RsvpResolutionKind;
+  /** kind "single": the answer that counts. Always false when "split". */
+  attending: boolean;
+  /** kind "split": how many of these people are coming. 0 when "single". */
+  coming: number;
+  /** kind "split": how many are not. 0 when "single". */
+  notComing: number;
+  note: string;
+  /** Records in the group when this was decided — the merge base for staleness. */
+  recordCount: number;
+  createdAt: string;
+};
+
+export type RsvpResolutionInput = {
+  nameKey: string;
+  kind: RsvpResolutionKind;
+  attending: boolean;
+  coming: number;
+  notComing: number;
+  note: string;
+};
+
+export const RESOLUTION_NOTE_MAX = 200;
+
 export type RsvpDocument = {
   records: RsvpRecord[];
+  resolutions: RsvpResolution[];
   updatedAt?: string;
 };
 
@@ -16,23 +51,62 @@ export function normalizeRsvps(data: unknown): RsvpDocument {
   if (Array.isArray(data)) {
     return {
       records: data.map(normalizeRecord).filter(Boolean) as RsvpRecord[],
+      resolutions: [],
     };
   }
 
   if (data && typeof data === "object" && "records" in data) {
     const record = data as Record<string, unknown>;
     const maybeRecords = record.records;
+    const maybeResolutions = record.resolutions;
 
     return {
       records: Array.isArray(maybeRecords)
         ? (maybeRecords.map(normalizeRecord).filter(Boolean) as RsvpRecord[])
+        : [],
+      resolutions: Array.isArray(maybeResolutions)
+        ? (maybeResolutions
+            .map(normalizeResolution)
+            .filter(Boolean) as RsvpResolution[])
         : [],
       updatedAt:
         typeof record.updatedAt === "string" ? record.updatedAt : undefined,
     };
   }
 
-  return { records: [] };
+  return { records: [], resolutions: [] };
+}
+
+/** A malformed resolution is dropped, which reopens its group. No answer is lost. */
+function normalizeResolution(entry: unknown): RsvpResolution | null {
+  if (!entry || typeof entry !== "object") {
+    return null;
+  }
+
+  const record = entry as Record<string, unknown>;
+  const parsed = parseRsvpResolution(record);
+
+  if (!parsed.ok) {
+    return null;
+  }
+
+  return {
+    id:
+      typeof record.id === "string" && record.id
+        ? record.id
+        : crypto.randomUUID(),
+    ...parsed.value,
+    recordCount:
+      typeof record.recordCount === "number" &&
+      Number.isInteger(record.recordCount) &&
+      record.recordCount >= 0
+        ? record.recordCount
+        : 0,
+    createdAt:
+      typeof record.createdAt === "string"
+        ? record.createdAt
+        : new Date().toISOString(),
+  };
 }
 
 function normalizeRecord(entry: unknown): RsvpRecord | null {
@@ -101,6 +175,80 @@ export function validateRsvpName(value: string): string | null {
   }
 
   return null;
+}
+
+export type RsvpResolutionParse =
+  | { ok: true; value: RsvpResolutionInput }
+  | { ok: false; error: string };
+
+/** Shared by the admin form and the route handler, so both agree on the rules. */
+export function parseRsvpResolution(payload: unknown): RsvpResolutionParse {
+  const body = (payload ?? {}) as Record<string, unknown>;
+  const nameKey = typeof body.nameKey === "string" ? body.nameKey.trim() : "";
+
+  if (!nameKey) {
+    return { ok: false, error: "Не указано имя." };
+  }
+
+  const note = typeof body.note === "string" ? body.note.trim() : "";
+
+  if (note.length > RESOLUTION_NOTE_MAX) {
+    return {
+      ok: false,
+      error: `Заметка длиннее ${RESOLUTION_NOTE_MAX} символов.`,
+    };
+  }
+
+  if (body.kind === "single") {
+    if (typeof body.attending !== "boolean") {
+      return { ok: false, error: "Не выбран ответ." };
+    }
+
+    return {
+      ok: true,
+      value: {
+        nameKey,
+        kind: "single",
+        attending: body.attending,
+        coming: 0,
+        notComing: 0,
+        note,
+      },
+    };
+  }
+
+  if (body.kind === "split") {
+    const coming = toPersonCount(body.coming);
+    const notComing = toPersonCount(body.notComing);
+
+    if (coming === null || notComing === null) {
+      return { ok: false, error: "Количество людей — целое число от нуля." };
+    }
+
+    if (coming + notComing < 2) {
+      return { ok: false, error: "Разных людей должно быть хотя бы двое." };
+    }
+
+    return {
+      ok: true,
+      value: {
+        nameKey,
+        kind: "split",
+        attending: false,
+        coming,
+        notComing,
+        note,
+      },
+    };
+  }
+
+  return { ok: false, error: "Неизвестный тип решения." };
+}
+
+function toPersonCount(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0
+    ? value
+    : null;
 }
 
 /** One presumed person within a name group: everything from a single browser. */
@@ -321,6 +469,36 @@ export async function submitRsvp(
 
     const data = (await response.json().catch(() => null)) as
       | SubmitRsvpResult
+      | null;
+
+    if (!response.ok) {
+      return { ok: false, error: data?.error ?? `HTTP ${response.status}` };
+    }
+
+    return data ?? { ok: false, error: "Пустой ответ сервера." };
+  } catch {
+    return { ok: false, error: "Не удалось связаться с сервером." };
+  }
+}
+
+export type SubmitResolutionResult = {
+  ok: boolean;
+  error?: string;
+  resolution?: RsvpResolution;
+};
+
+export async function submitRsvpResolution(
+  input: RsvpResolutionInput
+): Promise<SubmitResolutionResult> {
+  try {
+    const response = await fetch("/api/rsvp/resolve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+
+    const data = (await response.json().catch(() => null)) as
+      | SubmitResolutionResult
       | null;
 
     if (!response.ok) {

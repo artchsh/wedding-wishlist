@@ -7,6 +7,7 @@ import {
   countGroupPeople,
   summarizeRsvps,
 } from "../app/rsvp-data.ts";
+import { parseRsvpResolution } from "../app/rsvp-data.ts";
 
 function record(
   name: string,
@@ -153,4 +154,79 @@ test("the summary totals people, not names", () => {
   assert.equal(summary.people, 3);
   assert.equal(summary.names, 2);
   assert.equal(summary.needsReview, 1);
+});
+
+test("normalizes a document with no resolutions to an empty array", () => {
+  const document = normalizeRsvps({ records: [] });
+  assert.deepEqual(document.resolutions, []);
+});
+
+test("accepts a single-person resolution", () => {
+  const result = parseRsvpResolution({
+    nameKey: "салима е.",
+    kind: "single",
+    attending: true,
+    note: "  это одна и та же  ",
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.ok && result.value, {
+    nameKey: "салима е.",
+    kind: "single",
+    attending: true,
+    coming: 0,
+    notComing: 0,
+    note: "это одна и та же",
+  });
+});
+
+test("accepts a split resolution", () => {
+  const result = parseRsvpResolution({
+    nameKey: "салима е.",
+    kind: "split",
+    coming: 2,
+    notComing: 1,
+    note: "",
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.ok && result.value, {
+    nameKey: "салима е.",
+    kind: "split",
+    attending: false,
+    coming: 2,
+    notComing: 1,
+    note: "",
+  });
+});
+
+test("rejects a split of fewer than two people", () => {
+  const result = parseRsvpResolution({
+    nameKey: "салима е.",
+    kind: "split",
+    coming: 1,
+    notComing: 0,
+  });
+
+  assert.equal(result.ok, false);
+});
+
+test("rejects a missing name, an unknown kind, and a fractional count", () => {
+  assert.equal(parseRsvpResolution({ kind: "single", attending: true }).ok, false);
+  assert.equal(parseRsvpResolution({ nameKey: "a b", kind: "merge" }).ok, false);
+  assert.equal(
+    parseRsvpResolution({ nameKey: "a b", kind: "split", coming: 1.5, notComing: 1 }).ok,
+    false
+  );
+});
+
+test("rejects an over-long note", () => {
+  const result = parseRsvpResolution({
+    nameKey: "a b",
+    kind: "single",
+    attending: true,
+    note: "я".repeat(201),
+  });
+
+  assert.equal(result.ok, false);
 });
