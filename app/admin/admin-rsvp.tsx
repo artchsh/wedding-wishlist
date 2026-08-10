@@ -40,6 +40,7 @@ export function AdminRsvp() {
   const [backupSending, setBackupSending] = useState(false);
   const [backupStatus, setBackupStatus] = useState("");
   const [resolvingKey, setResolvingKey] = useState<string | null>(null);
+  const [resolveErrorKey, setResolveErrorKey] = useState<string | null>(null);
   const [resolveError, setResolveError] = useState("");
 
   const groups = useMemo(
@@ -78,15 +79,22 @@ export function AdminRsvp() {
     setBackupSending(false);
   }
 
-  /** Resolves to false on failure so the row can keep its controls open. */
+  /**
+   * Resolves to false on failure so the row can keep its controls open.
+   * `resolvingKey` only tracks the in-flight spinner and clears on any
+   * outcome; `resolveErrorKey` tracks which row's error to keep showing
+   * once that spinner clears, so a failed save doesn't lose its message.
+   */
   async function handleResolve(input: RsvpResolutionInput) {
     setResolvingKey(input.nameKey);
+    setResolveErrorKey(null);
     setResolveError("");
 
     const result = await submitRsvpResolution(input);
 
     if (!result.ok || !result.resolution) {
       setResolveError(result.error ?? "Не удалось сохранить решение.");
+      setResolveErrorKey(input.nameKey);
       setResolvingKey(null);
       return false;
     }
@@ -167,7 +175,7 @@ export function AdminRsvp() {
                 key={group.key}
                 group={group}
                 busy={resolvingKey === group.key}
-                error={resolvingKey === group.key ? resolveError : ""}
+                error={resolveErrorKey === group.key ? resolveError : ""}
                 onResolve={handleResolve}
               />
             ))
