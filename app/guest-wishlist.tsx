@@ -252,22 +252,29 @@ export function GuestWishlist() {
           </Card>
         </header>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Cash instead of gift</CardTitle>
-            <CardDescription>
-              Если вам лень думать, или не подарки не подходят под бюджет - можно просто денюжками <br></br> (переводом на Kaspi или конвертом на свадьбе.)
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 md:flex md:flex-wrap items-center gap-3">
-            <span className="h-10 flex items-center border bg-muted/50 px-3 py-2 font-mono text-sm">
-              {KASPI_NUMBER}
-            </span>
-            <Button type="button" variant="outline" className="h-10 flex items-center " size="sm" onClick={handleCopyKaspi}>
-              {kaspiCopied ? <Check /> : <Copy />}
-              {kaspiCopied ? "Скопировано" : "Скопировать"}
-            </Button>
-          </CardContent>
+        <Card className="gap-0 overflow-hidden p-0 md:flex-row md:items-stretch">
+          <img
+            src="/nezumi.jpg"
+            alt="Наш кот"
+            className="h-40 w-full shrink-0 object-cover md:h-auto md:w-56"
+          />
+          <div className="flex flex-1 flex-col gap-(--card-spacing) py-(--card-spacing)">
+            <CardHeader>
+              <CardTitle>Деньги вместо подарка</CardTitle>
+              <CardDescription>
+                Если вам лень думать, или подарки не подходят под бюджет - можно просто денюжками <br></br> (переводом на Kaspi или конвертом на свадьбе). И да, у нас приболел кот, так что часть переводов мысленно уходит ему на корм и лечение 🐱
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 md:flex md:flex-wrap items-center gap-3">
+              <span className="h-10 flex items-center border bg-muted/50 px-3 py-2 font-mono text-sm">
+                {KASPI_NUMBER}
+              </span>
+              <Button type="button" variant="outline" className="h-10 flex items-center " size="sm" onClick={handleCopyKaspi}>
+                {kaspiCopied ? <Check /> : <Copy />}
+                {kaspiCopied ? "Скопировано" : "Скопировать"}
+              </Button>
+            </CardContent>
+          </div>
         </Card>
 
         <section className="space-y-4">
